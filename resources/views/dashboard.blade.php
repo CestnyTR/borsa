@@ -156,7 +156,20 @@
                                     <template x-for="price in company.prices" :key="price.weight_gram">
                                         <div class="bg-gray-50 p-4 rounded-lg text-center hover:bg-gray-100 transition">
                                             <p class="text-sm text-gray-600 mb-1" x-text="price.weight_gram + ' Gram'"></p>
-                                            <p class="text-2xl font-bold text-gray-800" x-text="formatPrice(price.final_price)"></p>
+                                            <div class="mt-2 space-y-1">
+                                                <template x-for="set in (company.price_sets || [])" :key="set.code">
+                                                    <div class="flex items-center justify-between text-sm">
+                                                        <span
+                                                            :class="set.code === 'OFFICIAL' ? 'font-semibold text-blue-700' : 'text-gray-600'"
+                                                            x-text="set.name"
+                                                        ></span>
+                                                        <span
+                                                            :class="set.code === 'OFFICIAL' ? 'font-semibold text-blue-700' : 'text-gray-800'"
+                                                            x-text="(() => { const p = getPriceForWeight(set.prices, price.weight_gram); return p ? formatPrice(p.final_price, set.currency || 'TRY') : '—'; })()"
+                                                        ></span>
+                                                    </div>
+                                                </template>
+                                            </div>
                                             <div class="mt-2 text-xs text-gray-500">
                                                 <template x-if="price.markup.percent > 0">
                                                     <p>Kar: %<span x-text="price.markup.percent"></span></p>
@@ -407,6 +420,11 @@
                         currency,
                         minimumFractionDigits: 2
                     }).format(price);
+                },
+
+                getPriceForWeight(prices, weightGram) {
+                    if (!Array.isArray(prices)) return null;
+                    return prices.find(p => Number(p.weight_gram) === Number(weightGram)) || null;
                 },
 
                 formatDateTime(dateString) {

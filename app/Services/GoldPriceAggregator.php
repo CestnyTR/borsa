@@ -6,8 +6,9 @@ use App\Models\GoldAsset;
 use App\Models\GoldPrice;
 use App\Models\GoldRawPrice;
 use App\Models\GoldSource;
-use App\Services\GoldScrapers\AhlatciDovizScraper;
+use App\Services\GoldScrapers\AhlatciDovizGramScraper;
 use App\Services\GoldScrapers\GoldScraperInterface;
+use App\Services\GoldScrapers\HaremAltinGramScraper;
 use App\Services\GoldScrapers\NadirDovizScraper;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
@@ -29,8 +30,8 @@ class GoldPriceAggregator
     {
         $this->scrapers = [
             new NadirDovizScraper(),
-            // AhlatciDovizScraper devre dışı: JSON verileri güncel değil (USD=7.51 eski veri)
-            // new AhlatciDovizScraper(),
+            new AhlatciDovizGramScraper(),
+            new HaremAltinGramScraper(),
         ];
     }
 

@@ -6,6 +6,8 @@ use App\Models\Company;
 use App\Models\CompanyGoldSetting;
 use App\Models\GoldAsset;
 use App\Models\GoldPrice;
+use App\Models\GoldRawPrice;
+use Illuminate\Support\Facades\DB;
 
 class CompanyGoldPriceService
 {
@@ -19,21 +21,7 @@ class CompanyGoldPriceService
     {
         $company = Company::with('goldSettings.asset')->findOrFail($companyId);
 
-        $asset = GoldAsset::where('code', 'GRAM_GOLD_TRY')->first();
-
-        if (!$asset) {
-            throw new \Exception('Gold asset not found');
-        }
-
-        // Get latest gold price
-        $goldPrice = GoldPrice::where('asset_id', $asset->id)
-            ->whereNull('valid_to')
-            ->latest('valid_from')
-            ->first();
-
-        if (!$goldPrice) {
-            throw new \Exception('No active gold price found');
-        }
+        [$asset, $goldPrice] = $this->getAssetAndOfficialPrice();
 
         // Get company settings
         $settings = CompanyGoldSetting::where('company_id', $companyId)
@@ -41,6 +29,50 @@ class CompanyGoldPriceService
             ->where('is_active', true)
             ->orderBy('sort_order')
             ->get();
+
+        $officialBase = (float) $goldPrice->sell_price;
+        $officialPrices = [];
+        foreach ($settings as $setting) {
+            $officialPrices[] = $this->calculatePrice($officialBase, $setting);
+        }
+
+        $priceSets = [];
+
+        foreach ($this->getLatestRawSourcesForAsset($asset->id) as $source) {
+            $baseSell = (float) $source['sell_price'];
+            $sourcePrices = [];
+            foreach ($settings as $setting) {
+                $sourcePrices[] = $this->calculatePrice($baseSell, $setting);
+            }
+
+            $priceSets[] = [
+                'code' => $source['code'],
+                'name' => $source['name'],
+                'currency' => 'TRY',
+                'unit' => $asset->unit,
+                'base_price' => [
+                    'asset' => $asset->name,
+                    'unit' => $asset->unit,
+                    'sell_price' => $baseSell,
+                    'fetched_at' => $source['fetched_at'],
+                ],
+                'prices' => $sourcePrices,
+            ];
+        }
+
+        $priceSets[] = [
+            'code' => 'OFFICIAL',
+            'name' => 'Ortalama (Resmi)',
+            'currency' => 'TRY',
+            'unit' => $asset->unit,
+            'base_price' => [
+                'asset' => $asset->name,
+                'unit' => $asset->unit,
+                'sell_price' => $officialBase,
+                'valid_from' => $goldPrice->valid_from->toIso8601String(),
+            ],
+            'prices' => $officialPrices,
+        ];
 
         $result = [
             'company' => [
@@ -51,20 +83,12 @@ class CompanyGoldPriceService
             'base_price' => [
                 'asset' => $asset->name,
                 'unit' => $asset->unit,
-                'sell_price' => (float) $goldPrice->sell_price,
+                'sell_price' => $officialBase,
                 'valid_from' => $goldPrice->valid_from->toIso8601String(),
             ],
-            'prices' => [],
+            'prices' => $officialPrices,
+            'price_sets' => $priceSets,
         ];
-
-        foreach ($settings as $setting) {
-            $calculated = $this->calculatePrice(
-                (float) $goldPrice->sell_price,
-                $setting
-            );
-
-            $result['prices'][] = $calculated;
-        }
 
         return $result;
     }
@@ -90,6 +114,57 @@ class CompanyGoldPriceService
         }
 
         return $result;
+    }
+
+    /**
+     * @return array{0: GoldAsset, 1: GoldPrice}
+     */
+    private function getAssetAndOfficialPrice(): array
+    {
+        $asset = GoldAsset::where('code', 'GRAM_GOLD_TRY')->first();
+
+        if (!$asset) {
+            throw new \Exception('Gold asset not found');
+        }
+
+        $goldPrice = GoldPrice::where('asset_id', $asset->id)
+            ->whereNull('valid_to')
+            ->latest('valid_from')
+            ->first();
+
+        if (!$goldPrice) {
+            throw new \Exception('No active gold price found');
+        }
+
+        return [$asset, $goldPrice];
+    }
+
+    /**
+     * @return array<int, array{code: string, name: string, sell_price: float, fetched_at: string}>
+     */
+    private function getLatestRawSourcesForAsset(int $assetId): array
+    {
+        $latestIds = GoldRawPrice::query()
+            ->select('source_id', DB::raw('MAX(id) as max_id'))
+            ->where('asset_id', $assetId)
+            ->groupBy('source_id');
+
+        $rows = DB::table('gold_raw_prices as grp')
+            ->joinSub($latestIds, 'latest', function ($join) {
+                $join->on('grp.id', '=', 'latest.max_id');
+            })
+            ->join('gold_sources as s', 's.id', '=', 'grp.source_id')
+            ->where('s.is_active', 1)
+            ->select(['s.code', 's.name', 'grp.sell_price', 'grp.fetched_at'])
+            ->orderBy('s.code')
+            ->get();
+
+        return $rows->map(fn ($row) => [
+            'code' => (string) $row->code,
+            'name' => (string) $row->name,
+            'sell_price' => (float) $row->sell_price,
+            'fetched_at' => (string) $row->fetched_at,
+        ])->all();
     }
 
     /**
