@@ -10,6 +10,7 @@ use App\Services\CompanyGoldPriceService;
 use App\Services\GoldPriceAggregator;
 use App\Services\GoldScrapers\AhlatciDovizWebScraper;
 use App\Services\GoldScrapers\NadirDovizOnsScraper;
+use App\Services\GoldScrapers\HaremAltinScraper;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -144,6 +145,8 @@ class GoldPriceController extends Controller
                 $sources[] = [
                     'name' => 'Ahlatcı Döviz',
                     'code' => 'AHLATCI_DOVIZ',
+                    'currency' => 'TRY',
+                    'unit' => 'Gram',
                     'price' => [
                         'buy' => $ahlatciData['buy'],
                         'sell' => $ahlatciData['sell'],
@@ -153,6 +156,8 @@ class GoldPriceController extends Controller
                 $sources[] = [
                     'name' => 'Ahlatcı Döviz',
                     'code' => 'AHLATCI_DOVIZ',
+                    'currency' => 'TRY',
+                    'unit' => 'Gram',
                     'error' => $e->getMessage(),
                 ];
             }
@@ -164,6 +169,8 @@ class GoldPriceController extends Controller
                 $sources[] = [
                     'name' => 'Nadirdöviz (Ons)',
                     'code' => 'NADIR_DOVIZ_ONS',
+                    'currency' => 'USD',
+                    'unit' => 'Ons',
                     'price' => [
                         'buy' => $nadirOnsData['buy'],
                         'sell' => $nadirOnsData['sell'],
@@ -173,27 +180,32 @@ class GoldPriceController extends Controller
                 $sources[] = [
                     'name' => 'Nadirdöviz (Ons)',
                     'code' => 'NADIR_DOVIZ_ONS',
+                    'currency' => 'USD',
+                    'unit' => 'Ons',
                     'error' => $e->getMessage(),
                 ];
             }
 
-            // 3. Nadirdöviz (Gram) - ons'a çevir
+            // 3. Harem Altın
             try {
-                $nadirGramScraper = new \App\Services\GoldScrapers\NadirDovizScraper();
-                $nadirGramData = $nadirGramScraper->fetchPrice();
-                // Gram'ı ons'a çevir (1 ons = 31.1 gram)
+                $haremAltinScraper = new HaremAltinScraper();
+                $haremAltinData = $haremAltinScraper->fetchPrice();
                 $sources[] = [
-                    'name' => 'Nadirdöviz (Gram→Ons)',
-                    'code' => 'NADIR_DOVIZ_GRAM',
+                    'name' => 'Harem Altın',
+                    'code' => 'HAREM_ALTIN',
+                    'currency' => 'USD',
+                    'unit' => 'Ons',
                     'price' => [
-                        'buy' => $nadirGramData['buy'] ? $nadirGramData['buy'] * 31.1 : null,
-                        'sell' => $nadirGramData['sell'] * 31.1,
+                        'buy' => $haremAltinData['buy'],
+                        'sell' => $haremAltinData['sell'],
                     ],
                 ];
             } catch (\Exception $e) {
                 $sources[] = [
-                    'name' => 'Nadirdöviz (Gram→Ons)',
-                    'code' => 'NADIR_DOVIZ_GRAM',
+                    'name' => 'Harem Altın',
+                    'code' => 'HAREM_ALTIN',
+                    'currency' => 'USD',
+                    'unit' => 'Ons',
                     'error' => $e->getMessage(),
                 ];
             }

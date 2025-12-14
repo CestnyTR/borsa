@@ -86,17 +86,17 @@
                                                'text-purple-700': index === 1,
                                                'text-green-700': index === 2
                                            }"
-                                           x-text="formatPrice(source.price.sell)">
+                                           x-text="formatPrice(source.price.sell, source.currency || 'USD')">
                                         </p>
-                                        <p class="text-xs text-gray-500 mt-1">TL / Ons</p>
+                                        <p class="text-xs text-gray-500 mt-1" x-text="(source.currency || 'USD') + ' / ' + (source.unit || 'Ons')"></p>
                                     </div>
 
                                     <div>
                                         <p class="text-sm text-gray-600 mb-1">Alış Fiyatı</p>
                                         <p class="text-2xl font-semibold text-gray-700"
-                                           x-text="source.price.buy ? formatPrice(source.price.buy) : '—'">
+                                           x-text="source.price.buy ? formatPrice(source.price.buy, source.currency || 'USD') : '—'">
                                         </p>
-                                        <p class="text-xs text-gray-500 mt-1">TL / Ons</p>
+                                        <p class="text-xs text-gray-500 mt-1" x-text="(source.currency || 'USD') + ' / ' + (source.unit || 'Ons')"></p>
                                     </div>
 
                                     <div class="pt-3 border-t border-gray-200">
@@ -401,10 +401,10 @@
                     }
                 },
 
-                formatPrice(price) {
+                formatPrice(price, currency = 'TRY') {
                     return new Intl.NumberFormat('tr-TR', {
                         style: 'currency',
-                        currency: 'TRY',
+                        currency,
                         minimumFractionDigits: 2
                     }).format(price);
                 },

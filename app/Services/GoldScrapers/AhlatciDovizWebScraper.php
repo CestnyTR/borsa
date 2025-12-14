@@ -56,11 +56,9 @@ class AhlatciDovizWebScraper implements GoldScraperInterface
         @$dom->loadHTML($html, LIBXML_NOERROR | LIBXML_NOWARNING);
         $xpath = new \DOMXPath($dom);
 
-        // XAU (Ons Altın) satırını bul
+        // XAU satırını bul
         // Tablo yapısı: <tr><th>XAU</th><td>Alış</td><td>Satış</td></tr>
-
-        // XAU içeren th'yi bul (kod sütunu)
-        $xauCells = $xpath->query("//th[contains(text(), 'XAU')]");
+        $xauCells = $xpath->query("//th[contains(translate(normalize-space(text()), 'xau', 'XAU'), 'XAU')]");
 
         if ($xauCells->length === 0) {
             throw new Exception('XAU verisi bulunamadı');
@@ -91,10 +89,8 @@ class AhlatciDovizWebScraper implements GoldScraperInterface
 
                 // İlk iki hücre: Alış ve Satış
                 if (count($cellTexts) >= 2) {
-                    // Türk sayı formatı: 5921.5000 (nokta binlik ayırıcı DEĞİL, ondalık)
-                    // Bu örnekte zaten doğru format
-                    $buyPrice = floatval(trim($cellTexts[0]));
-                    $sellPrice = floatval(trim($cellTexts[1]));
+                    $buyPrice = $this->parseLocaleNumber($cellTexts[0]);
+                    $sellPrice = $this->parseLocaleNumber($cellTexts[1]);
                     break; // Bulundu, döngüden çık
                 }
             }
@@ -104,7 +100,7 @@ class AhlatciDovizWebScraper implements GoldScraperInterface
             throw new Exception('XAU satış fiyatı parse edilemedi');
         }
 
-        Log::info('AhlatciDovizWebScraper: Prices parsed', [
+        Log::info('AhlatciDovizWebScraper: Prices parsed (XAU)', [
             'buy' => $buyPrice,
             'sell' => $sellPrice,
         ]);
@@ -113,5 +109,33 @@ class AhlatciDovizWebScraper implements GoldScraperInterface
             'buy' => $buyPrice,
             'sell' => $sellPrice,
         ];
+    }
+
+    private function parseLocaleNumber(string $value): ?float
+    {
+        $value = trim(str_replace("\xc2\xa0", ' ', $value));
+        $value = str_replace(' ', '', $value);
+
+        if ($value === '') {
+            return null;
+        }
+
+        $hasDot = str_contains($value, '.');
+        $hasComma = str_contains($value, ',');
+
+        if ($hasDot && $hasComma) {
+            // TR format example: 5.921,50 -> 5921.50
+            $value = str_replace('.', '', $value);
+            $value = str_replace(',', '.', $value);
+        } elseif ($hasComma && !$hasDot) {
+            $value = str_replace(',', '.', $value);
+        }
+
+        $value = preg_replace('/[^0-9.\-]/', '', $value) ?? '';
+        if ($value === '' || $value === '-' || $value === '.') {
+            return null;
+        }
+
+        return (float) $value;
     }
 }
