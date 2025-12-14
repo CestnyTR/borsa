@@ -18,7 +18,6 @@
                         <p class="text-yellow-100 mt-2">Anlık ons altın fiyatları ve şirket karşılaştırmaları</p>
                         <div class="mt-2 space-x-4">
                             <a href="/admin/companies" class="inline-block text-yellow-100 hover:text-white text-sm underline">⚙️ Şirket Yönetimi</a>
-                            <a href="/admin/prices/manual" class="inline-block text-yellow-100 hover:text-white text-sm underline">📝 Manuel Fiyat Girişi</a>
                         </div>
                     </div>
                     <div class="text-right">
@@ -127,14 +126,23 @@
             <div class="bg-white rounded-lg shadow-md p-6">
                 <div class="flex items-center justify-between mb-6">
                     <h2 class="text-2xl font-bold text-gray-800">🏪 Şirket Fiyatları</h2>
-                    <button
-                        @click="fetchCompaniesPrices()"
-                        class="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-lg transition"
-                        :disabled="loading"
-                    >
-                        <span x-show="!loading">🔄 Yenile</span>
-                        <span x-show="loading">⏳ Yükleniyor...</span>
-                    </button>
+                    <div class="flex items-center gap-2">
+                        <a
+                            x-show="companyCode"
+                            href="/"
+                            class="bg-gray-500 hover:bg-gray-600 text-white px-4 py-2 rounded-lg transition"
+                        >
+                            ⬅️ Tüm Şirketler
+                        </a>
+                        <button
+                            @click="fetchCompaniesPrices()"
+                            class="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-lg transition"
+                            :disabled="loading"
+                        >
+                            <span x-show="!loading">🔄 Yenile</span>
+                            <span x-show="loading">⏳ Yükleniyor...</span>
+                        </button>
+                    </div>
                 </div>
 
                 <template x-if="companies.length > 0">
@@ -145,6 +153,12 @@
                                     <div>
                                         <h3 class="text-xl font-bold text-gray-800" x-text="company.company.name"></h3>
                                         <p class="text-sm text-gray-500" x-text="'Kod: ' + company.company.code"></p>
+                                        <template x-if="!companyCode">
+                                            <a class="text-sm text-blue-600 hover:underline"
+                                               :href="`/company/${company.company.code}`">
+                                                Tek şirket görünümü →
+                                            </a>
+                                        </template>
                                     </div>
                                     <div class="text-right">
                                         <p class="text-xs text-gray-500">Baz Fiyat</p>
@@ -221,6 +235,7 @@
                 onsPrice: null,
                 onsSources: [],
                 companies: [],
+                companyCode: @json($companyCode ?? null),
                 autoRefreshEnabled: true,
                 autoRefreshInterval: null,
                 nextRefreshIn: 900, // 15 dakika (saniye cinsinden)
@@ -237,10 +252,14 @@
                     // Scraping yapmadan sadece database'deki son veriyi getir
                     this.loading = true;
                     try {
+                        const companiesUrl = this.companyCode
+                            ? `/api/companies/${this.companyCode}/prices`
+                            : '/api/companies/prices';
+
                         const [priceResponse, onsResponse, companiesResponse] = await Promise.all([
-                            fetch('/api/gold/current'),
-                            fetch('/api/gold/ons'),
-                            fetch('/api/companies/prices')
+                            fetch('/api/gold/current', { headers: { 'Accept': 'application/json' } }),
+                            fetch('/api/gold/ons', { headers: { 'Accept': 'application/json' } }),
+                            fetch(companiesUrl, { headers: { 'Accept': 'application/json' } })
                         ]);
 
                         const priceData = await priceResponse.json();
@@ -257,7 +276,7 @@
                         }
 
                         if (companiesData.success) {
-                            this.companies = companiesData.data;
+                            this.companies = this.companyCode ? [companiesData.data] : companiesData.data;
                         }
                     } catch (error) {
                         console.error('Veri yükleme hatası:', error);
@@ -315,10 +334,14 @@
                     // Sadece mevcut verileri çek (scraping yapmadan)
                     // NOT: Scraping cron job tarafından arka planda yapılıyor
                     try {
+                        const companiesUrl = this.companyCode
+                            ? `/api/companies/${this.companyCode}/prices`
+                            : '/api/companies/prices';
+
                         const [priceResponse, onsResponse, companiesResponse] = await Promise.all([
-                            fetch('/api/gold/current'),
-                            fetch('/api/gold/ons'),
-                            fetch('/api/companies/prices')
+                            fetch('/api/gold/current', { headers: { 'Accept': 'application/json' } }),
+                            fetch('/api/gold/ons', { headers: { 'Accept': 'application/json' } }),
+                            fetch(companiesUrl, { headers: { 'Accept': 'application/json' } })
                         ]);
 
                         const priceData = await priceResponse.json();
@@ -335,7 +358,7 @@
                         }
 
                         if (companiesData.success) {
-                            this.companies = companiesData.data;
+                            this.companies = this.companyCode ? [companiesData.data] : companiesData.data;
                         }
 
                         console.log('Veriler güncellendi (otomatik, database\'den)');
@@ -375,7 +398,7 @@
                         await this.triggerFetchFromSources();
 
                         // Sonra güncel fiyatı getir
-                        const response = await fetch('/api/gold/current');
+                        const response = await fetch('/api/gold/current', { headers: { 'Accept': 'application/json' } });
                         const data = await response.json();
                         if (data.success) {
                             this.currentPrice = data.data;
@@ -398,10 +421,13 @@
                         await this.triggerFetchFromSources();
 
                         // Sonra şirket fiyatlarını getir
-                        const response = await fetch('/api/companies/prices');
+                        const companiesUrl = this.companyCode
+                            ? `/api/companies/${this.companyCode}/prices`
+                            : '/api/companies/prices';
+                        const response = await fetch(companiesUrl, { headers: { 'Accept': 'application/json' } });
                         const data = await response.json();
                         if (data.success) {
-                            this.companies = data.data;
+                            this.companies = this.companyCode ? [data.data] : data.data;
                         }
 
                         // Countdown'u sıfırla

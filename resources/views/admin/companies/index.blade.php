@@ -15,6 +15,10 @@
                     <a href="/" class="text-gray-600 hover:text-gray-900">Dashboard</a>
                     <a href="{{ route('admin.companies.index') }}" class="text-blue-600 font-semibold">Şirket Yönetimi</a>
                 </div>
+                <form method="POST" action="{{ route('logout') }}">
+                    @csrf
+                    <button type="submit" class="text-sm text-gray-600 hover:text-gray-900 underline">Çıkış</button>
+                </form>
             </div>
         </nav>
 
