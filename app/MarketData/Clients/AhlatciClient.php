@@ -3,14 +3,14 @@
 namespace App\MarketData\Clients;
 
 use App\MarketData\DTO\QuoteDto;
+use App\MarketData\Support\NumberParser;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\Cache;
-use Illuminate\Support\Facades\Http;
 use RuntimeException;
 
 class AhlatciClient implements MarketDataClientInterface
 {
-    private const API_URL = 'https://www.ahlatcidoviz.com.tr/static/currencies.json';
+    private const URL = 'https://www.ahlatcidoviz.com.tr/kr.aspx';
 
     public function sourceCode(): string
     {
@@ -21,99 +21,133 @@ class AhlatciClient implements MarketDataClientInterface
     {
         $this->rateLimit();
 
-        $response = Http::withHeaders([
-            'Accept' => 'application/json',
-            'User-Agent' => config('app.scraper_user_agent', 'Mozilla/5.0'),
-        ])
-            ->retry(3, 350)
-            ->timeout(15)
-            ->get(self::API_URL);
+        $context = stream_context_create([
+            'http' => [
+                'method' => 'GET',
+                'header' => [
+                    'User-Agent: ' . config('app.scraper_user_agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'),
+                    'Accept: text/html,application/xhtml+xml',
+                ],
+                'timeout' => 15,
+            ],
+        ]);
 
-        $response->throw();
+        $html = @file_get_contents(self::URL, false, $context);
 
-        $payload = $response->json();
-        if (!is_array($payload)) {
-            throw new RuntimeException('Invalid JSON payload');
+        if ($html === false) {
+            throw new RuntimeException('Ahlatcı Döviz web sitesine erişilemedi');
         }
-
-        $xau = $this->findRow($payload, 'XAU');
-        $xauusd = $this->findRow($payload, 'XAUUSD');
 
         $fetchedAt = CarbonImmutable::now();
+        $quotes = [];
 
-        return [
-            new QuoteDto(
+        try {
+            [$xauBuy, $xauSell, $xauCells] = $this->parseSymbolRow($html, 'XAU');
+            $quotes[] = new QuoteDto(
                 sourceCode: $this->sourceCode(),
                 instrument: 'HAS',
-                bid: $this->parseNumeric($this->firstValue($xau, ['Al', 'Alis', 'Alış', 'alis', 'buy', 'Buying'])),
-                ask: $this->parseNumeric($this->firstValue($xau, ['St', 'Satis', 'Satış', 'satis', 'sell', 'Selling'])),
+                bid: $xauBuy,
+                ask: $xauSell,
                 currency: 'TRY',
                 fetchedAt: $fetchedAt,
-                rawPayload: $xau
-            ),
-            new QuoteDto(
+                rawPayload: [
+                    'SMB' => 'XAU',
+                    'cells' => $xauCells,
+                ]
+            );
+        } catch (\Throwable $e) {
+            $quotes[] = new QuoteDto(
+                sourceCode: $this->sourceCode(),
+                instrument: 'HAS',
+                bid: null,
+                ask: null,
+                currency: 'TRY',
+                fetchedAt: $fetchedAt,
+                rawPayload: [
+                    'SMB' => 'XAU',
+                    'error' => $e->getMessage(),
+                ]
+            );
+        }
+
+        try {
+            [$xauUsdBuy, $xauUsdSell, $xauUsdCells] = $this->parseSymbolRow($html, 'XAUUSD');
+            $quotes[] = new QuoteDto(
                 sourceCode: $this->sourceCode(),
                 instrument: 'ONS',
-                bid: $this->parseNumeric($this->firstValue($xauusd, ['Al', 'Alis', 'Alış', 'alis', 'buy', 'Buying'])),
-                ask: $this->parseNumeric($this->firstValue($xauusd, ['St', 'Satis', 'Satış', 'satis', 'sell', 'Selling'])),
+                bid: $xauUsdBuy,
+                ask: $xauUsdSell,
                 currency: 'USD',
                 fetchedAt: $fetchedAt,
-                rawPayload: $xauusd
-            ),
-        ];
+                rawPayload: [
+                    'SMB' => 'XAUUSD',
+                    'cells' => $xauUsdCells,
+                ]
+            );
+        } catch (\Throwable $e) {
+            $quotes[] = new QuoteDto(
+                sourceCode: $this->sourceCode(),
+                instrument: 'ONS',
+                bid: null,
+                ask: null,
+                currency: 'USD',
+                fetchedAt: $fetchedAt,
+                rawPayload: [
+                    'SMB' => 'XAUUSD',
+                    'error' => $e->getMessage(),
+                ]
+            );
+        }
+
+        return $quotes;
     }
 
     /**
-     * @param array<int, mixed> $payload
-     * @return array<string, mixed>
+     * @return array{0: float|null, 1: float, 2: array<int, string>}
      */
-    private function findRow(array $payload, string $smb): array
+    private function parseSymbolRow(string $html, string $symbol): array
     {
-        $needle = strtoupper($smb);
-        foreach ($payload as $item) {
-            if (!is_array($item)) {
+        $dom = new \DOMDocument();
+        @$dom->loadHTML($html, LIBXML_NOERROR | LIBXML_NOWARNING);
+        $xpath = new \DOMXPath($dom);
+
+        $upper = strtoupper($symbol);
+        $cells = $xpath->query("//th[contains(translate(normalize-space(text()), 'abcdefghijklmnopqrstuvwxyz', 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'), '{$upper}')]");
+
+        if (!$cells || $cells->length === 0) {
+            throw new RuntimeException("{$symbol} verisi bulunamadı");
+        }
+
+        foreach ($cells as $th) {
+            $thText = strtoupper(trim((string) $th->textContent));
+            if ($thText !== $upper) {
                 continue;
             }
-            $value = strtoupper((string) ($item['SMB'] ?? ''));
-            if ($value === $needle || ($value !== '' && str_starts_with($value, $needle))) {
-                return $item;
+            $row = $th->parentNode;
+            if (!$row) {
+                continue;
             }
-        }
-
-        throw new RuntimeException("Row not found: {$smb}");
-    }
-
-    /**
-     * @param array<string, mixed> $row
-     * @param array<int, string> $keys
-     */
-    private function firstValue(array $row, array $keys): mixed
-    {
-        foreach ($keys as $key) {
-            if (array_key_exists($key, $row)) {
-                return $row[$key];
+            $tds = $xpath->query('.//td', $row);
+            if (!$tds || $tds->length < 2) {
+                continue;
             }
-        }
-        return null;
-    }
 
-    private function parseNumeric(mixed $value): ?float
-    {
-        if ($value === null) {
-            return null;
-        }
-        if (is_int($value) || is_float($value)) {
-            return (float) $value;
-        }
-        if (is_string($value)) {
-            $value = trim($value);
-            if ($value === '') {
-                return null;
+            $cellTexts = [];
+            foreach ($tds as $td) {
+                $cellTexts[] = trim((string) $td->textContent);
             }
-            return (float) $value;
+
+            $buy = NumberParser::parseLocaleNumber($cellTexts[0] ?? null);
+            $sell = NumberParser::parseLocaleNumber($cellTexts[1] ?? null);
+
+            if ($sell === null) {
+                continue;
+            }
+
+            return [$buy, $sell, $cellTexts];
         }
 
-        return null;
+        throw new RuntimeException("{$symbol} satırı parse edilemedi");
     }
 
     private function rateLimit(): void
