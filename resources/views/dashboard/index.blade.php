@@ -94,7 +94,7 @@
                             @endphp
                             <tr class="border-t">
                                 <td class="py-2 pr-3 font-semibold">{{ $s['code'] }}</td>
-                                <td class="py-2 pr-3">{{ $instrument }}</td>
+                                <td class="py-2 pr-3">{{ $row['source_instrument'] ?? $instrument }}</td>
                                 <td class="py-2 pr-3 font-mono">{{ $row && $row['bid'] !== null ? number_format((float)$row['bid'], 4) : '—' }}</td>
                                 <td class="py-2 pr-3 font-mono">{{ $row && $row['ask'] !== null ? number_format((float)$row['ask'], 4) : '—' }}</td>
                                 <td class="py-2 pr-3">{{ $row['currency'] ?? '—' }}</td>
@@ -193,10 +193,11 @@
                     return ['HAS', 'ONS'].map(instr => {
                         const row = (((state.market || {})[s.code] || {}).instruments || {})[instr] || null;
                         const stale = row && row.stale ? `<span class="ml-2 text-xs text-orange-700 bg-orange-50 px-2 py-1 rounded">stale</span>` : '';
+                        const label = row ? (row.source_instrument || row.instrument || instr) : instr;
                         return `
                             <tr class="border-t">
                                 <td class="py-2 pr-3 font-semibold">${s.code}</td>
-                                <td class="py-2 pr-3">${instr}</td>
+                                <td class="py-2 pr-3">${label}</td>
                                 <td class="py-2 pr-3 font-mono">${row ? fmt(row.bid) : '—'}</td>
                                 <td class="py-2 pr-3 font-mono">${row ? fmt(row.ask) : '—'}</td>
                                 <td class="py-2 pr-3">${row ? (row.currency || '—') : '—'}</td>

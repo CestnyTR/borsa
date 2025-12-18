@@ -41,6 +41,7 @@ class MarketQuoteService
                             'id' => $model->id,
                             'source' => $source->code,
                             'instrument' => $quote->instrument,
+                            'source_instrument' => $this->sourceInstrumentLabel($quote->instrument, $quote->rawPayload),
                             'bid' => $quote->bid,
                             'ask' => $quote->ask,
                             'currency' => $quote->currency,
@@ -62,5 +63,29 @@ class MarketQuoteService
     {
         return "market:latest:{$sourceCode}:{$instrument}";
     }
-}
 
+    /**
+     * @param array<string, mixed>|null $rawPayload
+     */
+    private function sourceInstrumentLabel(string $instrument, ?array $rawPayload): string
+    {
+        if (is_array($rawPayload)) {
+            $smb = $rawPayload['SMB'] ?? null;
+            if (is_string($smb) && $smb !== '') {
+                return $smb;
+            }
+
+            $parite = $rawPayload['parite'] ?? null;
+            if (is_string($parite) && $parite !== '') {
+                return $parite;
+            }
+
+            $baslik = $rawPayload['baslik'] ?? null;
+            if (is_string($baslik) && $baslik !== '') {
+                return $baslik;
+            }
+        }
+
+        return $instrument;
+    }
+}

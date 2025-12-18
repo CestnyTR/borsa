@@ -116,6 +116,12 @@ class DashboardController extends Controller
             foreach (['HAS', 'ONS'] as $instrument) {
                 $cached = Cache::get("market:latest:{$source->code}:{$instrument}");
                 if (is_array($cached)) {
+                    if (!isset($cached['source_instrument'])) {
+                        $cached['source_instrument'] = $this->sourceInstrumentFromPayload(
+                            (string) ($cached['instrument'] ?? $instrument),
+                            is_array($cached['raw_payload'] ?? null) ? $cached['raw_payload'] : null
+                        );
+                    }
                     $market[$source->code]['name'] = $source->name;
                     $market[$source->code]['instruments'][$instrument] = $this->withStale($cached, 'fetched_at', $now);
                 }
@@ -200,6 +206,7 @@ class DashboardController extends Controller
                     'id' => $row->id,
                     'source' => $source->code,
                     'instrument' => $instrument,
+                    'source_instrument' => $this->sourceInstrumentFromPayload($instrument, $row->raw_payload),
                     'bid' => $row->bid !== null ? (float) $row->bid : null,
                     'ask' => $row->ask !== null ? (float) $row->ask : null,
                     'currency' => (string) $row->currency,
@@ -245,5 +252,30 @@ class DashboardController extends Controller
         }
 
         return $result;
+    }
+
+    /**
+     * @param array<string, mixed>|null $rawPayload
+     */
+    private function sourceInstrumentFromPayload(string $instrument, ?array $rawPayload): string
+    {
+        if (is_array($rawPayload)) {
+            $smb = $rawPayload['SMB'] ?? null;
+            if (is_string($smb) && $smb !== '') {
+                return $smb;
+            }
+
+            $parite = $rawPayload['parite'] ?? null;
+            if (is_string($parite) && $parite !== '') {
+                return $parite;
+            }
+
+            $baslik = $rawPayload['baslik'] ?? null;
+            if (is_string($baslik) && $baslik !== '') {
+                return $baslik;
+            }
+        }
+
+        return $instrument;
     }
 }

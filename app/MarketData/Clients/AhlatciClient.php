@@ -45,8 +45,8 @@ class AhlatciClient implements MarketDataClientInterface
             new QuoteDto(
                 sourceCode: $this->sourceCode(),
                 instrument: 'HAS',
-                bid: $this->parseNumeric($xau['Al'] ?? null),
-                ask: $this->parseNumeric($xau['St'] ?? null),
+                bid: $this->parseNumeric($this->firstValue($xau, ['Al', 'Alis', 'Alış', 'alis', 'buy', 'Buying'])),
+                ask: $this->parseNumeric($this->firstValue($xau, ['St', 'Satis', 'Satış', 'satis', 'sell', 'Selling'])),
                 currency: 'TRY',
                 fetchedAt: $fetchedAt,
                 rawPayload: $xau
@@ -54,8 +54,8 @@ class AhlatciClient implements MarketDataClientInterface
             new QuoteDto(
                 sourceCode: $this->sourceCode(),
                 instrument: 'ONS',
-                bid: $this->parseNumeric($xauusd['Al'] ?? null),
-                ask: $this->parseNumeric($xauusd['St'] ?? null),
+                bid: $this->parseNumeric($this->firstValue($xauusd, ['Al', 'Alis', 'Alış', 'alis', 'buy', 'Buying'])),
+                ask: $this->parseNumeric($this->firstValue($xauusd, ['St', 'Satis', 'Satış', 'satis', 'sell', 'Selling'])),
                 currency: 'USD',
                 fetchedAt: $fetchedAt,
                 rawPayload: $xauusd
@@ -69,16 +69,32 @@ class AhlatciClient implements MarketDataClientInterface
      */
     private function findRow(array $payload, string $smb): array
     {
+        $needle = strtoupper($smb);
         foreach ($payload as $item) {
             if (!is_array($item)) {
                 continue;
             }
-            if (($item['SMB'] ?? null) === $smb) {
+            $value = strtoupper((string) ($item['SMB'] ?? ''));
+            if ($value === $needle || ($value !== '' && str_starts_with($value, $needle))) {
                 return $item;
             }
         }
 
         throw new RuntimeException("Row not found: {$smb}");
+    }
+
+    /**
+     * @param array<string, mixed> $row
+     * @param array<int, string> $keys
+     */
+    private function firstValue(array $row, array $keys): mixed
+    {
+        foreach ($keys as $key) {
+            if (array_key_exists($key, $row)) {
+                return $row[$key];
+            }
+        }
+        return null;
     }
 
     private function parseNumeric(mixed $value): ?float

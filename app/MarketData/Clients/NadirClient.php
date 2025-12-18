@@ -57,8 +57,18 @@ class NadirClient implements MarketDataClientInterface
             throw new RuntimeException('Invalid payload: list missing');
         }
 
-        $hasRow = $this->findRow($list, targetParites: ['AU/TL', 'ALTIN/TL'], targetBasliks: ['ALTIN/TL', 'ALTIN TL', 'ALTIN / TL']);
-        $onsRow = $this->findRow($list, targetParites: ['XAU/USD'], targetBasliks: ['ALTIN/ONS', 'ALTIN ONS', 'ALTIN / ONS']);
+        $hasRow = $this->findRow(
+            $list,
+            targetParites: ['AU/TL', 'ALTIN/TL', 'XAU/TRY', 'XAU/TRL', 'XAU/ TL', 'AU/TRY'],
+            targetBasliks: ['ALTIN/TL', 'ALTIN TL', 'ALTIN / TL'],
+            titleMustContainAll: ['ALTIN', 'TL']
+        );
+        $onsRow = $this->findRow(
+            $list,
+            targetParites: ['XAU/USD'],
+            targetBasliks: ['ALTIN/ONS', 'ALTIN ONS', 'ALTIN / ONS'],
+            titleMustContainAll: ['ALTIN', 'ONS']
+        );
 
         $fetchedAt = CarbonImmutable::now();
 
@@ -88,12 +98,14 @@ class NadirClient implements MarketDataClientInterface
      * @param array<int, mixed> $list
      * @param array<int, string> $targetParites
      * @param array<int, string> $targetBasliks
+     * @param array<int, string> $titleMustContainAll
      * @return array<string, mixed>
      */
-    private function findRow(array $list, array $targetParites, array $targetBasliks): array
+    private function findRow(array $list, array $targetParites, array $targetBasliks, array $titleMustContainAll = []): array
     {
         $targetParites = array_map('strtoupper', $targetParites);
         $targetBasliks = array_map('strtoupper', $targetBasliks);
+        $titleMustContainAll = array_map('strtoupper', $titleMustContainAll);
 
         foreach ($list as $row) {
             if (!is_array($row)) {
@@ -106,12 +118,32 @@ class NadirClient implements MarketDataClientInterface
                 ->replace('ı', 'I')
                 ->value());
 
-            if (in_array($parite, $targetParites, true) || in_array($baslik, $targetBasliks, true)) {
+            $pariteMatch = $parite !== '' && in_array($parite, $targetParites, true);
+            $baslikMatch = $baslik !== '' && in_array($baslik, $targetBasliks, true);
+            $containsMatch = $baslik !== '' && $titleMustContainAll !== [] && $this->containsAll($baslik, $titleMustContainAll);
+
+            if ($pariteMatch || $baslikMatch || $containsMatch) {
                 return $row;
             }
         }
 
         throw new RuntimeException('Target row not found');
+    }
+
+    /**
+     * @param array<int, string> $needles
+     */
+    private function containsAll(string $haystack, array $needles): bool
+    {
+        foreach ($needles as $needle) {
+            if ($needle === '') {
+                continue;
+            }
+            if (!str_contains($haystack, $needle)) {
+                return false;
+            }
+        }
+        return true;
     }
 
     private function parseNumeric(mixed $value): ?float
