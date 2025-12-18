@@ -1,6 +1,9 @@
 <?php
 
 use App\Http\Controllers\Api\GoldPriceController;
+use App\Http\Controllers\Api\V1\Admin\MultiplierController;
+use App\Http\Controllers\Api\V1\MarketController;
+use App\Http\Controllers\Api\V1\StorePriceController;
 use Illuminate\Support\Facades\Route;
 
 Route::middleware('portal.basic')->group(function () {
@@ -21,4 +24,15 @@ Route::middleware('portal.basic')->group(function () {
 
     // Specific company prices
     Route::get('/companies/{code}/prices', [GoldPriceController::class, 'companyPrices']);
+
+    Route::prefix('v1')->group(function () {
+        Route::get('/market/latest', [MarketController::class, 'latest']);
+        Route::get('/stores/{store}/prices/latest', [StorePriceController::class, 'latest']);
+    });
 });
+
+Route::prefix('v1/admin')
+    ->middleware(['web', 'auth', 'can:admin'])
+    ->group(function () {
+        Route::post('/stores/{store}/multipliers', [MultiplierController::class, 'upsert']);
+    });

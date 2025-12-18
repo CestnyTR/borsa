@@ -11,3 +11,6 @@ Artisan::command('inspire', function () {
 // Otomatik fiyat güncelleme - Her 15 dakikada bir
 // Chrome Headless kullanarak Nadirdoviz'den gerçek fiyat çeker
 Schedule::command('gold:fetch')->everyFifteenMinutes();
+
+// Market quotes + store price calculation (throttled ~30s)
+Schedule::command('market:update')->everyMinute();

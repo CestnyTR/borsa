@@ -29,7 +29,7 @@ class AuthenticatedSessionController extends Controller
 
         $request->session()->regenerate();
 
-        return redirect()->intended(route('admin.companies.index'));
+        return redirect()->intended(route('dashboard'));
     }
 
     public function destroy(Request $request): RedirectResponse
@@ -42,4 +42,3 @@ class AuthenticatedSessionController extends Controller
         return redirect()->route('login');
     }
 }
-

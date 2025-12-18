@@ -27,7 +27,7 @@
                             <span class="text-xs bg-blue-100 px-2 py-1 rounded">Sadece demo</span>
                         </div>
                         <p class="text-sm mt-2">
-                            E-posta: <span class="font-mono font-semibold">test@example.com</span><br>
+                            E-posta: <span class="font-mono font-semibold">admin@example.com</span><br>
                             Şifre: <span class="font-mono font-semibold">password</span>
                         </p>
                     </div>
