@@ -1,103 +1,146 @@
-# Borsa — Gerçek Zamanlı Altın & Piyasa Fiyat Platformu
+# Fiyat Paneli
 
-Ham piyasa verilerini (HAS / ONS) birden çok kaynaktan toplayıp mağaza
-çarpanlarıyla ürün fiyatlarına dönüştüren ve bunları **canlı** olarak panoya
-yayınlayan Laravel uygulaması.
+**Kuyumcular için canlı altın fiyatı & müşteri panosu SaaS'ı.**
 
-- **Framework:** Laravel 12 · PHP 8.4
-- **Gerçek zamanlı:** Laravel Reverb (self-hosted, Pusher-uyumlu WebSocket)
-- **Kaynaklar:** Ahlatcı (HTML scrape) · Nadir (API) · **Harem (Socket.IO, canlı)**
+Fiyat Paneli; kuyumcuların ham piyasa verilerini (HAS/ONS) birden çok kaynaktan toplayıp kendi marjlarıyla ürün fiyatlarına dönüştürmesini, bu fiyatları **saniye saniye canlı** olarak hem kendi panellerinde hem de dükkandaki müşteri panosunda (TV/tablet) göstermesini sağlar. Çok kiracılı yapı, abonelik planları ve iyzico ödeme akışıyla uçtan uca bir SaaS örneğidir.
 
-## Mimari
+> ℹ️ **Portfolyo projesi.** Ödeme (iyzico) entegrasyonu **guard'lı** çalışır — API anahtarı olmadan sistem "yapılandırılmamış" modda ayakta kalır, `.env`'e anahtarlar girildiğinde abonelik akışı canlıya geçer.
 
-```
-Kaynaklar
-  Ahlatcı (HTML) ─┐
-  Nadir (API)    ─┼─► MarketQuoteService ─► market_quotes (DB) + Cache
-  Harem (Socket.IO, canlı) ─┘                    │
-        │ harem:listen daemon                     ▼
-        │                              StorePricingService ─► store_prices (DB) + Cache
-        │                                         │  MarketQuotesUpdated / StorePricesUpdated
-        ▼                                         ▼
-  (cron: market:update, HAREM hariç)      queue worker ─► Reverb ─► tarayıcı
-                                                   (private-store.{id} → /dashboard/data)
-```
+**Teknolojiler:** Laravel 12 · PHP 8.4 · **Laravel Reverb** (WebSocket) · Blade + Tailwind CSS · SQLite/MySQL · iyzico · PHPUnit · PM2
 
-İki fiyat hattı vardır:
-1. **Mağaza/ürün fiyatları:** `market_quotes` + `store_prices` (dakikalık cron + HAREM canlı akış).
-2. **Şirket bazlı gram altın:** `gold_*` tabloları (15 dakikalık scrape + ortalama).
+---
 
-Detaylı analiz için [docs/ANALYSIS.md](docs/ANALYSIS.md), realtime tasarımı için
-[docs/REALTIME.md](docs/REALTIME.md).
+## Öne çıkanlar
 
-## HAREM canlı akış
+- ⚡ **Gerçek zamanlı fiyat** — HAREM'in Socket.IO yayınına bağlanan bir köprü daemon'u (`harem:listen`), her tick'i **Reverb** üzerinden tarayıcıya anlık push eder. Bağlantı koparsa otomatik polling'e düşer.
+- 🪙 **Sunucu-hesaplı fiyatlama** — ürünün gram-altın içeriği sunucuda sabit (çeyrek, yarım, tam…); mağaza yalnızca kendi **marjını** (yüzde ve/veya sabit tutar) girer. `Fiyat = HAS × gram-sabiti × (1 + %marj) + tutar`.
+- 📺 **Müşteriye dönük pano** — her mağazanın kendi slug'lı, markalı, tam ekran (dark) fiyat panosu — dükkanda TV/tablette gösterime uygun.
+- 🔀 **Çoklu kaynak + sağlık skoru** — AHLATCI / NADIR / HAREM; deterministik sıralama, hata durumunda otomatik yedekleme (`source_health`).
+- 💳 **Abonelik & ödeme** — Ücretsiz / Pro planları, plan kotaları (max mağaza, canlı fiyat, markalı pano), iyzico aylık abonelik + webhook senkronu.
+- 🏢 **Çok kiracılılık** — mağaza→sahip ilişkisi; plan limitleri sahip bazında uygulanır (Pro'ya yükseltme yönlendirmesi).
+- 🧾 **Denetim kaydı & izleme** — yönetici aksiyonları (mağaza/marj/abonelik) loglanır; `monitor:health` daemon heartbeat ve veri tazeliğini izleyip uyarır.
+- 🎨 **Sade arayüz** — teknoloji bilmeyen kullanıcı için jargonsuz, kart-tabanlı tasarım; ham/teknik veriler "Detaylı veriler" altında gizli.
 
-HAREM eski HTTP uçlarını (`/tmp/altin.json`) kaldırıp Socket.IO'ya geçti
-(`wss://hrmsocketonly.haremaltin.com`, `price_changed`). `harem:listen` daemon'ı
-tek bir kalıcı bağlantı tutar, her tick'te fiyatları DB/cache'e yazar, mağaza
-fiyatlarını yeniden hesaplar ve yayınlar. Cron poll bu kaynağı atlar
-(`MARKET_STREAMED_SOURCES`) — çift bağlantı ve HAREM 429 riski önlenir.
+## Ekran görüntüleri
+
+**Operatör paneli** — canlı fiyat, ürün kartları
+
+![Dashboard](docs/screenshots/dashboard.png)
+
+**Müşteri panosu** — tam ekran, markalı, TV/tablet dostu
+
+![Müşteri Panosu](docs/screenshots/board.png)
+
+| Planlar & Abonelik | Fiyat marjları |
+|---|---|
+| ![Planlar](docs/screenshots/pricing.png) | ![Marjlar](docs/screenshots/margins.png) |
+
+## Demo hesabı
+
+`migrate --seed` sonrası hazır gelir (parola: `password`):
+
+| E-posta | Rol | Açıklama |
+|---|---|---|
+| `admin@example.com` | admin | Demo mağaza, ürünler ve marjlarla dolu |
 
 ## Kurulum
 
 ```bash
+git clone <repo> && cd borsa
 composer install
-npm install            # varlıklar için (frontend pusher-js CDN'den yüklenir)
 cp .env.example .env
 php artisan key:generate
-php artisan migrate
-php artisan reverb:install   # REVERB_* zaten .env'de; gerekirse yeniden üretir
+touch database/database.sqlite      # SQLite (varsayılan)
+php artisan migrate --seed
+php artisan reverb:install          # REVERB_* .env'e yazılır
 ```
 
-`.env` içinde önemli ayarlar:
+## Çalıştırma
 
-```env
-BROADCAST_CONNECTION=reverb
-QUEUE_CONNECTION=database
-
-MARKET_STREAMED_SOURCES=HAREM
-MARKET_STREAM_DEBOUNCE_MS=1000
-
-REVERB_APP_ID=...
-REVERB_APP_KEY=...
-REVERB_APP_SECRET=...
-REVERB_HOST="localhost"   # prod: genel alan adı (nginx wss proxy)
-REVERB_PORT=8080
-REVERB_SCHEME=http        # prod: https
-```
-
-## Çalıştırma — PM2 (tek komut)
-
-Tüm arka plan süreçleri (reverb, queue, cron/scheduler, harem) **tek komutla**
-PM2 ile çalışır. Config: [ecosystem.config.cjs](ecosystem.config.cjs).
+Sistem birkaç kalıcı süreç ister (WebSocket santralı, kuyruk, zamanlayıcı, canlı akış). **PM2 ile tek komut** ([ecosystem.config.cjs](ecosystem.config.cjs)):
 
 ```bash
-npm install -g pm2                    # bir kez
-pm2 start ecosystem.config.cjs        # hepsini başlat
-pm2 status                            # durum
-pm2 logs                              # loglar (tek süreç: pm2 logs harem)
-pm2 startup && pm2 save               # sunucu açılışında otomatik başlat
+npm install -g pm2
+pm2 start ecosystem.config.cjs      # reverb + queue + cron + harem
+APP_SERVE=1 pm2 start ecosystem.config.cjs   # yerelde web sunucusunu da ekle
+pm2 status ; pm2 logs
 ```
 
-| Süreç (PM2 adı) | Komut | Görev |
-|---|---|---|
-| `reverb` | `reverb:start` | Event'leri tarayıcılara dağıtan websocket santralı |
-| `queue` | `queue:work` | Broadcast job'larını işler |
-| `cron` | `schedule:work` | `market:update` (dakikalık) + `gold:fetch` (15 dk) — ayrı crontab gerekmez |
-| `harem` | `harem:listen` | HAREM'den canlı tick çeker |
+| PM2 adı | Görev |
+|---|---|
+| `reverb` | Event'leri tarayıcılara dağıtan WebSocket santralı |
+| `queue` | Broadcast job'ları |
+| `cron` | `schedule:work` — piyasa güncelleme + sağlık izleme |
+| `harem` | HAREM canlı akış daemon'u |
 
-- **Sunucuda web'i nginx + php-fpm sunar** (varsayılan; PM2 web'i çalıştırmaz).
-- **Yerelde** dahili web sunucusunu da istersen: `APP_SERVE=1 pm2 start ecosystem.config.cjs`.
-- Alternatif: Supervisor örneği [deploy/supervisor/borsa.conf](deploy/supervisor/borsa.conf).
+> Üretimde web'i nginx + php-fpm sunar; `REVERB_HOST`'u genel alan adına, `REVERB_SCHEME`'i `https`'e ayarlayıp nginx ile `wss://alanadi → :8080` proxy'leyin.
 
-**Prod notu:** Tarayıcı `localhost:8080`'e erişemez. `REVERB_HOST`'u genel alan
-adına, `REVERB_SCHEME`'i `https`'e ayarla ve nginx ile `wss://alanadi → localhost:8080`
-proxy'le; Reverb `0.0.0.0:8080` dinler.
+## Mimari
 
-## Dökümanlar
+Katmanlı yapı: **Controller → Service → (DTO/Model) → Cache/Broadcast**.
 
-- [docs/REALTIME.md](docs/REALTIME.md) — REST → WebSocket dönüşümü, kanallar, HAREM köprüsü
-- [docs/ANALYSIS.md](docs/ANALYSIS.md) — sistem/mimari/güvenlik analizi
-- [docs/KURULUM.md](docs/KURULUM.md) — otomatik fiyat çekme kurulumu
-- [docs/NADIRDOVIZ_API_SETUP.md](docs/NADIRDOVIZ_API_SETUP.md) — Nadirdöviz API keşfi
-- [docs/ORNEKLER.md](docs/ORNEKLER.md) — veritabanı kullanım örnekleri
+```
+app/
+├── Http/Controllers/       # HTTP; Dashboard, Billing, Admin/*
+├── MarketData/
+│   ├── Clients/            # AHLATCI/NADIR/HAREM kaynak istemcileri
+│   ├── Support/            # HaremSocketReader (Socket.IO köprüsü), NumberParser
+│   ├── MarketQuoteService  # çekme + upsert + broadcast
+│   └── SourceSelector      # sağlık skoruna göre sıralama
+├── Pricing/               # PricingCalculator + StorePricingService
+├── Services/              # IyzicoService, SourceHealthService
+├── Console/Commands/      # harem:listen (daemon), monitor:health, market:update
+├── Events/                # MarketQuotesUpdated, StorePricesUpdated … (broadcast)
+├── Http/Middleware/       # EnsurePlanFeature (plan kapısı)
+└── Models/                # Store(owner), Product(has_factor), Subscription, AuditLog…
+```
+
+**Canlı akış:**
+
+```
+HAREM socket ──(harem:listen)──> DB/cache + fiyat hesap ──> broadcast
+                                                            └─> queue ─> Reverb ─> tarayıcı
+                                                                (private-store.{id})
+```
+
+HAREM eski HTTP uçlarını kaldırıp Socket.IO'ya geçti; köprü daemon tek bir kalıcı bağlantı tutup her `price_changed`'i pipeline'a besler. Daemon çalışmıyorsa cron bir **heartbeat** yedeğiyle HAREM'i tek-seferlik çeker. Ayrıntı: [docs/REALTIME.md](docs/REALTIME.md).
+
+## Planlar & ödeme (iyzico)
+
+Ücretsiz / Pro planları [config/plans.php](config/plans.php)'de tanımlı (fiyat, limitler). Abonelik akışı hazır; anahtarlar girilince aktifleşir:
+
+```env
+# Ödeme (iyzico) — boşken "yapılandırılmamış" mod; doldurunca canlı
+IYZICO_API_KEY=
+IYZICO_SECRET_KEY=
+IYZICO_BASE_URL=https://sandbox-api.iyzipay.com
+IYZICO_PRO_PLAN_REF=          # iyzico panelindeki Pro pricing plan referansı
+
+# Reverb (self-hosted WebSocket)
+BROADCAST_CONNECTION=reverb
+REVERB_APP_ID= ; REVERB_APP_KEY= ; REVERB_APP_SECRET=
+REVERB_HOST=localhost ; REVERB_PORT=8080 ; REVERB_SCHEME=http
+
+# Canlı akış
+MARKET_STREAMED_SOURCES=HAREM
+```
+
+Webhook (`/billing/iyzico/webhook`) HMAC-SHA256 imzayla doğrulanır ve abonelik yenileme/iptal olaylarını senkronlar.
+
+## Test
+
+```bash
+php artisan test
+```
+
+Kapsam: fiyat hesaplama (gram-sabiti + marj), mağaza fiyatlama servisi, HAREM socket parsing, kaynak istemcileri.
+
+## Dokümantasyon
+
+- 🔌 [**docs/REALTIME.md**](docs/REALTIME.md) — REST → WebSocket dönüşümü, kanallar, HAREM köprüsü
+- 🧭 [**docs/ANALYSIS.md**](docs/ANALYSIS.md) — sistem/mimari/güvenlik analizi
+- ⚙️ [docs/KURULUM.md](docs/KURULUM.md) · [docs/NADIRDOVIZ_API_SETUP.md](docs/NADIRDOVIZ_API_SETUP.md) · [docs/ORNEKLER.md](docs/ORNEKLER.md)
+
+## Lisans
+
+MIT
