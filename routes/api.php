@@ -1,12 +1,15 @@
 <?php
 
 use App\Http\Controllers\Api\GoldPriceController;
+use App\Http\Controllers\Api\AuthTokenController;
 use App\Http\Controllers\Api\V1\Admin\MultiplierController;
 use App\Http\Controllers\Api\V1\MarketController;
 use App\Http\Controllers\Api\V1\StorePriceController;
 use Illuminate\Support\Facades\Route;
 
-Route::middleware('portal.basic')->group(function () {
+Route::post('/auth/token', [AuthTokenController::class, 'issue'])->middleware('throttle:10,1');
+
+Route::middleware('auth:sanctum')->group(function () {
     // Current gold price (gram)
     Route::get('/gold/current', [GoldPriceController::class, 'current']);
 
@@ -32,7 +35,7 @@ Route::middleware('portal.basic')->group(function () {
 });
 
 Route::prefix('v1/admin')
-    ->middleware(['web', 'auth', 'can:admin'])
+    ->middleware(['auth:sanctum', 'can:admin'])
     ->group(function () {
         Route::post('/stores/{store}/multipliers', [MultiplierController::class, 'upsert']);
     });

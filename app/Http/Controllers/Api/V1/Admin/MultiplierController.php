@@ -48,10 +48,8 @@ class MultiplierController extends Controller
             $count++;
         }
 
-        return response()->json([
-            'ok' => true,
+        return $this->apiSuccess([
             'upserted' => $count,
         ]);
     }
 }
-

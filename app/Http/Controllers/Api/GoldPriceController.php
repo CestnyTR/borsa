@@ -29,10 +29,7 @@ class GoldPriceController extends Controller
         $asset = GoldAsset::where('code', 'GRAM_GOLD_TRY')->first();
 
         if (!$asset) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Gold asset not found',
-            ], 404);
+            return $this->apiError('Gold asset not found', [], 404);
         }
 
         $goldPrice = GoldPrice::where('asset_id', $asset->id)
@@ -41,27 +38,23 @@ class GoldPriceController extends Controller
             ->first();
 
         if (!$goldPrice) {
-            return response()->json([
-                'success' => false,
-                'message' => 'No active gold price found',
-            ], 404);
+            return $this->apiError('No active gold price found', [], 404);
         }
 
-        return response()->json([
-            'success' => true,
-            'data' => [
-                'asset' => [
-                    'code' => $asset->code,
-                    'name' => $asset->name,
-                    'unit' => $asset->unit,
-                ],
-                'price' => [
-                    'buy' => $goldPrice->buy_price ? (float) $goldPrice->buy_price : null,
-                    'sell' => (float) $goldPrice->sell_price,
-                ],
-                'calculated_from' => $goldPrice->calculated_from,
-                'valid_from' => $goldPrice->valid_from->toIso8601String(),
+        return $this->apiSuccess([
+            'asset' => [
+                'code' => $asset->code,
+                'name' => $asset->name,
+                'unit' => $asset->unit,
             ],
+            'price' => [
+                'buy' => $goldPrice->buy_price ? (float) $goldPrice->buy_price : null,
+                'sell' => (float) $goldPrice->sell_price,
+            ],
+            'calculated_from' => $goldPrice->calculated_from,
+            'valid_from' => $goldPrice->valid_from->toIso8601String(),
+        ], [
+            'last_update_at' => $asset->last_price_at?->toIso8601String() ?? $goldPrice->valid_from->toIso8601String(),
         ]);
     }
 
@@ -70,18 +63,20 @@ class GoldPriceController extends Controller
      */
     public function allCompanies(): JsonResponse
     {
+        $user = request()->user();
+        if (!$user || !$user->isAdmin()) {
+            return $this->apiError('Yetkisiz erisim.', [], 403);
+        }
+
         try {
             $data = $this->companyPriceService->getAllCompaniesPrices();
 
-            return response()->json([
-                'success' => true,
-                'data' => $data,
+            $lastUpdateAt = Company::query()->where('is_active', true)->max('last_gold_prices_at');
+            return $this->apiSuccess($data, [
+                'last_update_at' => $lastUpdateAt ? (string) $lastUpdateAt : null,
             ]);
         } catch (\Exception $e) {
-            return response()->json([
-                'success' => false,
-                'message' => $e->getMessage(),
-            ], 500);
+            return $this->apiError('Icerik hazirlanamadi.', [], 500);
         }
     }
 
@@ -94,23 +89,24 @@ class GoldPriceController extends Controller
             $company = Company::where('code', $companyCode)->first();
 
             if (!$company) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Company not found',
-                ], 404);
+                return $this->apiError('Company not found', [], 404);
+            }
+
+            $user = request()->user();
+            if ($user && !$user->isAdmin() && (int) $user->company_id !== (int) $company->id) {
+                return $this->apiError('Yetkisiz erisim.', [], 403);
+            }
+            if ($user && !$user->isAdmin() && !$user->company_id) {
+                return $this->apiError('Sirket atamasi bulunamadi.', [], 403);
             }
 
             $data = $this->companyPriceService->getCompanyPrices($company->id);
 
-            return response()->json([
-                'success' => true,
-                'data' => $data,
+            return $this->apiSuccess($data, [
+                'last_update_at' => $company->last_gold_prices_at?->toIso8601String(),
             ]);
         } catch (\Exception $e) {
-            return response()->json([
-                'success' => false,
-                'message' => $e->getMessage(),
-            ], 500);
+            return $this->apiError('Icerik hazirlanamadi.', [], 500);
         }
     }
 
@@ -119,14 +115,22 @@ class GoldPriceController extends Controller
      */
     public function companies(): JsonResponse
     {
-        $companies = Company::where('is_active', true)
-            ->select('id', 'name', 'code')
-            ->get();
+        $user = request()->user();
+        if ($user && !$user->isAdmin()) {
+            if (!$user->company_id) {
+                return $this->apiError('Sirket atamasi bulunamadi.', [], 403);
+            }
+            $companies = Company::where('is_active', true)
+                ->where('id', $user->company_id)
+                ->select('id', 'name', 'code')
+                ->get();
+        } else {
+            $companies = Company::where('is_active', true)
+                ->select('id', 'name', 'code')
+                ->get();
+        }
 
-        return response()->json([
-            'success' => true,
-            'data' => $companies,
-        ]);
+        return $this->apiSuccess($companies->toArray());
     }
 
     /**
@@ -158,7 +162,7 @@ class GoldPriceController extends Controller
                     'code' => 'AHLATCI_DOVIZ',
                     'currency' => 'TRY',
                     'unit' => 'Gram',
-                    'error' => $e->getMessage(),
+                    'error' => 'unavailable',
                 ];
             }
 
@@ -182,7 +186,7 @@ class GoldPriceController extends Controller
                     'code' => 'NADIR_DOVIZ_ONS',
                     'currency' => 'USD',
                     'unit' => 'Ons',
-                    'error' => $e->getMessage(),
+                    'error' => 'unavailable',
                 ];
             }
 
@@ -206,22 +210,16 @@ class GoldPriceController extends Controller
                     'code' => 'HAREM_ALTIN',
                     'currency' => 'USD',
                     'unit' => 'Ons',
-                    'error' => $e->getMessage(),
+                    'error' => 'unavailable',
                 ];
             }
 
-            return response()->json([
-                'success' => true,
-                'data' => [
-                    'sources' => $sources,
-                    'fetched_at' => now()->toIso8601String(),
-                ],
+            return $this->apiSuccess([
+                'sources' => $sources,
+                'fetched_at' => now()->toIso8601String(),
             ]);
         } catch (\Exception $e) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Ons altın fiyatları alınırken hata oluştu: ' . $e->getMessage(),
-            ], 500);
+            return $this->apiError('Ons altin fiyatlari alinirken hata olustu.', [], 500);
         }
     }
 
@@ -230,33 +228,30 @@ class GoldPriceController extends Controller
      */
     public function fetchNow(): JsonResponse
     {
+        $user = request()->user();
+        if (!$user || !$user->isAdmin()) {
+            return $this->apiError('Yetkisiz erisim.', [], 403);
+        }
+
         try {
             $rawPrices = $this->priceAggregator->fetchFromAllSources();
 
             if (empty($rawPrices)) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'No prices were fetched from any source.',
-                ], 500);
+                return $this->apiError('Kaynaklardan fiyat alinamadi.', [], 500);
             }
 
             $goldPrice = $this->priceAggregator->aggregateAndSave($rawPrices);
 
-            return response()->json([
-                'success' => true,
-                'message' => 'Fiyatlar başarıyla güncellendi!',
-                'data' => [
-                    'sources_count' => count($rawPrices),
-                    'raw_prices' => $rawPrices,
-                    'aggregated_price' => (float) $goldPrice->sell_price,
-                    'fetched_at' => $goldPrice->valid_from->toIso8601String(),
-                ],
+            return $this->apiSuccess([
+                'sources_count' => count($rawPrices),
+                'raw_prices' => $rawPrices,
+                'aggregated_price' => (float) $goldPrice->sell_price,
+                'fetched_at' => $goldPrice->valid_from->toIso8601String(),
+            ], [
+                'last_update_at' => $goldPrice->valid_from->toIso8601String(),
             ]);
         } catch (\Exception $e) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Fiyatlar güncellenirken hata oluştu: ' . $e->getMessage(),
-            ], 500);
+            return $this->apiError('Fiyatlar guncellenirken hata olustu.', [], 500);
         }
     }
 }

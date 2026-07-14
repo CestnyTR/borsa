@@ -278,9 +278,70 @@
                 }
             }
 
-            function startPolling() {
+            function stopPolling() {
                 if (timer) clearInterval(timer);
+                timer = null;
+            }
+
+            function startPolling() {
+                stopPolling();
                 timer = setInterval(() => fetchData({showLoading: false}), 30000);
+            }
+
+            async function setupRealtime() {
+                // Reverb konuşur Pusher protokolüyle, bu yüzden pusher-js'i
+                // kendi Reverb sunucumuza yönlendiriyoruz (bulut Pusher'a değil).
+                const reverbKey = @json(config('broadcasting.connections.reverb.key'));
+                const reverbHost = @json(config('broadcasting.connections.reverb.options.host'));
+                const reverbPort = Number(@json(config('broadcasting.connections.reverb.options.port')) || 8080);
+                const reverbScheme = @json(config('broadcasting.connections.reverb.options.scheme')) || 'http';
+                const forceTLS = reverbScheme === 'https';
+                const authEndpoint = @json(url('/broadcasting/auth'));
+                const storeId = storeSelect ? storeSelect.value : null;
+
+                if (!reverbKey || !storeId) {
+                    startPolling();
+                    return;
+                }
+
+                if (!window.Pusher) {
+                    await new Promise((resolve) => {
+                        const script = document.createElement('script');
+                        script.src = 'https://js.pusher.com/8.4.0/pusher.min.js';
+                        script.onload = resolve;
+                        script.onerror = resolve;
+                        document.head.appendChild(script);
+                    });
+                }
+
+                if (!window.Pusher) {
+                    startPolling();
+                    return;
+                }
+
+                const csrfToken = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
+                const pusher = new window.Pusher(reverbKey, {
+                    wsHost: reverbHost,
+                    wsPort: reverbPort,
+                    wssPort: reverbPort,
+                    forceTLS: forceTLS,
+                    enabledTransports: ['ws', 'wss'],
+                    cluster: '',
+                    authEndpoint,
+                    auth: {
+                        headers: {
+                            'X-CSRF-TOKEN': csrfToken
+                        }
+                    }
+                });
+
+                pusher.connection.bind('connected', () => stopPolling());
+                pusher.connection.bind('disconnected', () => startPolling());
+                pusher.connection.bind('error', () => startPolling());
+
+                const channel = pusher.subscribe(`private-store.${storeId}`);
+                channel.bind('store.prices.updated', () => fetchData({showLoading: false}));
+                channel.bind('market.quotes.updated', () => fetchData({showLoading: false}));
             }
 
             if (storeSelect) {
@@ -294,7 +355,7 @@
             refreshBtn.addEventListener('click', () => fetchData({showLoading: true}));
 
             render();
-            startPolling();
+            setupRealtime();
         })();
     </script>
 @endpush

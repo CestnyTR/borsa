@@ -11,10 +11,12 @@ class Company extends Model
         'name',
         'code',
         'is_active',
+        'last_gold_prices_at',
     ];
 
     protected $casts = [
         'is_active' => 'boolean',
+        'last_gold_prices_at' => 'datetime',
     ];
 
     public function goldSettings(): HasMany

@@ -19,6 +19,7 @@ class Store extends Model
     {
         return [
             'is_active' => 'boolean',
+            'last_priced_at' => 'datetime',
         ];
     }
 
@@ -30,4 +31,3 @@ class Store extends Model
         return $this->hasMany(StorePriceMultiplier::class);
     }
 }
-

@@ -4,10 +4,12 @@ namespace App\Console\Commands;
 
 use App\Jobs\ComputeStorePricesJob;
 use App\Jobs\FetchMarketQuotesJob;
+use App\Events\SystemHeartbeat;
 use Carbon\CarbonImmutable;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Bus;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Str;
 
 class MarketUpdateCommand extends Command
 {
@@ -26,6 +28,8 @@ class MarketUpdateCommand extends Command
             new ComputeStorePricesJob(),
         ])->dispatch();
 
+        event(new SystemHeartbeat((string) Str::uuid(), CarbonImmutable::now()->toIso8601String()));
+
         return self::SUCCESS;
     }
 
@@ -43,4 +47,3 @@ class MarketUpdateCommand extends Command
         return true;
     }
 }
-

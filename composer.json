@@ -9,6 +9,8 @@
         "php": "^8.2",
         "chrome-php/chrome": "^1.14",
         "laravel/framework": "^12.0",
+        "laravel/reverb": "^1.10",
+        "laravel/sanctum": "^4.2",
         "laravel/tinker": "^2.10.1",
         "symfony/css-selector": "^7.4",
         "symfony/dom-crawler": "^7.4"

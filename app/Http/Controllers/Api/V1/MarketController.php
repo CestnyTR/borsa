@@ -17,19 +17,23 @@ class MarketController extends Controller
         $sources = Source::query()->where('is_active', true)->get(['id', 'code', 'name']);
 
         $result = [];
+        $lastUpdateAt = null;
         foreach ($sources as $source) {
             foreach (['HAS', 'ONS'] as $instrument) {
                 $cached = Cache::get("market:latest:{$source->code}:{$instrument}");
                 if (is_array($cached)) {
                     $result[$source->code]['name'] = $source->name;
                     $result[$source->code]['instruments'][$instrument] = $cached;
+                    if (isset($cached['fetched_at']) && is_string($cached['fetched_at'])) {
+                        $lastUpdateAt = $this->maxIso($lastUpdateAt, $cached['fetched_at']);
+                    }
                 }
             }
         }
 
         if ($result !== []) {
-            return response()->json([
-                'data' => $result,
+            return $this->apiSuccess($result, [
+                'last_update_at' => $lastUpdateAt,
             ]);
         }
 
@@ -55,11 +59,22 @@ class MarketController extends Controller
                 'currency' => (string) $quote->currency,
                 'fetched_at' => $quote->fetched_at?->toIso8601String(),
             ];
+            if ($quote->fetched_at) {
+                $lastUpdateAt = $this->maxIso($lastUpdateAt, $quote->fetched_at->toIso8601String());
+            }
         }
 
-        return response()->json([
-            'data' => $result,
+        return $this->apiSuccess($result, [
+            'last_update_at' => $lastUpdateAt,
         ]);
     }
-}
 
+    private function maxIso(?string $current, string $candidate): string
+    {
+        if ($current === null) {
+            return $candidate;
+        }
+
+        return strcmp($candidate, $current) > 0 ? $candidate : $current;
+    }
+}

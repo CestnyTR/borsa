@@ -2,6 +2,8 @@
 
 namespace App\Pricing;
 
+use App\Events\MarketQuotesUpdated;
+use App\Events\StorePricesUpdated;
 use App\Models\MarketQuote;
 use App\Models\Product;
 use App\Models\Source;
@@ -12,6 +14,7 @@ use Carbon\CarbonImmutable;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 
 class StorePricingService
 {
@@ -27,6 +30,18 @@ class StorePricingService
             return;
         }
 
+        $quotesPayload = $latestQuotes->map(fn (MarketQuote $quote) => [
+            'id' => $quote->id,
+            'source_id' => (int) $quote->source_id,
+            'instrument' => (string) $quote->instrument,
+            'bid' => $quote->bid !== null ? (float) $quote->bid : null,
+            'ask' => $quote->ask !== null ? (float) $quote->ask : null,
+            'currency' => (string) $quote->currency,
+            'fetched_at' => $quote->fetched_at?->toIso8601String(),
+        ])->values()->all();
+        $lastQuoteAt = $latestQuotes->max(fn (MarketQuote $quote) => $quote->fetched_at?->getTimestamp() ?? 0);
+        $lastQuoteIso = $lastQuoteAt > 0 ? CarbonImmutable::createFromTimestamp($lastQuoteAt)->toIso8601String() : null;
+
         $stores = Store::query()->where('is_active', true)->get();
         $products = Product::query()->get()->keyBy('id');
         $sourcesById = Source::query()->get()->keyBy('id');
@@ -38,8 +53,10 @@ class StorePricingService
             }
 
             $now = CarbonImmutable::now();
+            $traceId = (string) Str::uuid();
 
             $cacheBySource = [];
+            $pricesPayload = [];
 
             foreach ($latestQuotes as $quote) {
                 if ((string) $quote->instrument !== 'HAS') {
@@ -104,6 +121,16 @@ class StorePricingService
                         'basis' => $basis,
                     ];
 
+                    $pricesPayload[] = [
+                        'product_id' => $productId,
+                        'source_id' => $sourceId,
+                        'instrument' => $instrument,
+                        'bid' => $bid,
+                        'ask' => $ask,
+                        'computed_price' => $ask ?? $bid,
+                        'updated_at' => $now->toIso8601String(),
+                    ];
+
                     Cache::put(
                         $this->cacheKeyLatestProduct($store->id, $sourceCode, $productCode),
                         [
@@ -126,6 +153,34 @@ class StorePricingService
                     $payload,
                     $cacheTtlSeconds
                 );
+            }
+
+            if ($pricesPayload !== []) {
+                Store::query()->where('id', $store->id)->update(['last_priced_at' => $now]);
+
+                event(new StorePricesUpdated(
+                    storeId: $store->id,
+                    prices: $pricesPayload,
+                    meta: [
+                        'emitted_at' => $now->toIso8601String(),
+                        'source_ids' => array_values(array_unique(array_column($pricesPayload, 'source_id'))),
+                        'store_id' => $store->id,
+                        'trace_id' => $traceId,
+                        'last_update_at' => $now->toIso8601String(),
+                    ]
+                ));
+
+                event(new MarketQuotesUpdated(
+                    quotes: $quotesPayload,
+                    meta: [
+                        'emitted_at' => $now->toIso8601String(),
+                        'source_ids' => array_values(array_unique(array_column($quotesPayload, 'source_id'))),
+                        'store_id' => $store->id,
+                        'trace_id' => $traceId,
+                        'last_update_at' => $lastQuoteIso,
+                    ],
+                    channelNames: ["store.{$store->id}"]
+                ));
             }
         }
     }

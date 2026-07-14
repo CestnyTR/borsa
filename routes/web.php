@@ -15,7 +15,7 @@ Route::get('/', function () {
 Route::middleware('auth')->group(function () {
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
     Route::get('/dashboard/data', [DashboardController::class, 'data'])->name('dashboard.data');
-    Route::post('/dashboard/fetch-now', [DashboardController::class, 'fetchNow'])->name('dashboard.fetchNow');
+    Route::post('/dashboard/fetch-now', [DashboardController::class, 'fetchNow'])->middleware('can:admin')->name('dashboard.fetchNow');
 });
 
 Route::get('/login', [AuthenticatedSessionController::class, 'create'])->name('login');

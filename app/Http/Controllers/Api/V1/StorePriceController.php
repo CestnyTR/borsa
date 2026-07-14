@@ -14,13 +14,29 @@ class StorePriceController extends Controller
 {
     public function latest(Request $request, Store $store): JsonResponse
     {
+        $user = $request->user();
+        if ($user && !$user->isAdmin() && !$user->store_id) {
+            return $this->apiError('Magaza atamasi bulunamadi.', [], 403);
+        }
+        if ($user && !$user->canAccessStore($store->id)) {
+            return $this->apiError('Yetkisiz erisim.', [], 403);
+        }
+
         $sourceCode = $request->query('source');
         $sourceCodes = $sourceCode ? [strtoupper((string) $sourceCode)] : null;
 
         if ($sourceCodes !== null) {
             $payload = Cache::get("store:prices:latest:{$store->id}:{$sourceCodes[0]}");
             if (is_array($payload)) {
-                return response()->json(['data' => [$sourceCodes[0] => $payload]]);
+                return $this->apiSuccess([
+                    'store' => [
+                        'id' => $store->id,
+                        'name' => $store->name,
+                    ],
+                    'sources' => [$sourceCodes[0] => $payload],
+                ], [
+                    'last_update_at' => $store->last_priced_at?->toIso8601String(),
+                ]);
             }
         }
 
@@ -32,7 +48,10 @@ class StorePriceController extends Controller
             ]);
 
         if ($sourceCodes !== null) {
-            $source = Source::query()->where('code', $sourceCodes[0])->firstOrFail();
+            $source = Source::query()->where('code', $sourceCodes[0])->first();
+            if (!$source) {
+                return $this->apiError('Source not found', [], 404);
+            }
             $query->where('source_id', $source->id);
         }
 
@@ -57,15 +76,14 @@ class StorePriceController extends Controller
             ];
         }
 
-        return response()->json([
-            'data' => [
-                'store' => [
-                    'id' => $store->id,
-                    'name' => $store->name,
-                ],
-                'sources' => $result,
+        return $this->apiSuccess([
+            'store' => [
+                'id' => $store->id,
+                'name' => $store->name,
             ],
+            'sources' => $result,
+        ], [
+            'last_update_at' => $store->last_priced_at?->toIso8601String(),
         ]);
     }
 }
-

@@ -13,9 +13,8 @@ class PortalBasicAuth
      */
     public function handle(Request $request, Closure $next): Response
     {
-        // Allow in-app JSON/XHR calls without prompting browser auth dialog.
-        // This is meant to block casual "open /api/..." navigation, not to be a hard API security boundary.
-        if ($request->expectsJson() || $request->wantsJson() || $request->ajax()) {
+        // Restrict to non-API routes only; API access is protected by Sanctum.
+        if ($request->is('api/*')) {
             return $next($request);
         }
 

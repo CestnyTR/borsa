@@ -23,7 +23,7 @@ class DashboardController extends Controller
         $isAdmin = $user?->can('admin') ?? false;
 
         $stores = Store::query()
-            ->when(!$isAdmin, fn ($q) => $q->where('is_active', true)->orderBy('id')->limit(1))
+            ->when(!$isAdmin, fn ($q) => $q->where('is_active', true)->orderBy('id'))
             ->when($isAdmin, fn ($q) => $q->orderBy('name'))
             ->get();
 
@@ -47,7 +47,10 @@ class DashboardController extends Controller
         $storeId = (int) $request->query('store_id', 0);
 
         if (!$isAdmin) {
-            $store = Store::query()->where('is_active', true)->orderBy('id')->first();
+            $store = null;
+            if ($user && $user->store_id) {
+                $store = Store::query()->where('id', $user->store_id)->where('is_active', true)->first();
+            }
             if (!$store) {
                 return response()->json(['data' => null]);
             }
@@ -78,6 +81,17 @@ class DashboardController extends Controller
     private function resolveSelectedStore(Request $request, $stores, bool $isAdmin): ?Store
     {
         if ($stores->isEmpty()) {
+            return null;
+        }
+
+        if (!$isAdmin) {
+            $user = $request->user();
+            if ($user && $user->store_id) {
+                $store = Store::query()->where('id', $user->store_id)->where('is_active', true)->first();
+                if ($store) {
+                    return $store;
+                }
+            }
             return null;
         }
 

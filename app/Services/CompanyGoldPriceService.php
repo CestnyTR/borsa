@@ -94,6 +94,53 @@ class CompanyGoldPriceService
     }
 
     /**
+     * @return array{company_id: int, items: array<int, array<string, mixed>>, meta: array<string, mixed>}
+     */
+    public function buildCompanyBroadcastPayload(int $companyId, \DateTimeInterface $emittedAt, string $traceId): array
+    {
+        $company = Company::with('goldSettings')->findOrFail($companyId);
+        [$asset, $goldPrice] = $this->getAssetAndOfficialPrice();
+
+        $settings = CompanyGoldSetting::where('company_id', $companyId)
+            ->where('asset_id', $asset->id)
+            ->where('is_active', true)
+            ->orderBy('sort_order')
+            ->get();
+
+        $settingsHash = hash('sha256', $settings->map(fn ($s) => [
+            'id' => $s->id,
+            'weight_gram' => (float) $s->weight_gram,
+            'markup_percent' => (float) $s->markup_percent,
+            'markup_fixed' => (float) $s->markup_fixed,
+            'rounding_step' => (float) $s->rounding_step,
+            'is_active' => (bool) $s->is_active,
+            'sort_order' => (int) $s->sort_order,
+        ])->values()->all());
+
+        $officialBase = (float) $goldPrice->sell_price;
+        $items = [];
+        foreach ($settings as $setting) {
+            $calc = $this->calculatePrice($officialBase, $setting);
+            $items[] = [
+                'asset_id' => $asset->id,
+                'final_price' => $calc['final_price'],
+                'settings_hash' => $settingsHash,
+                'updated_at' => $goldPrice->valid_from->toIso8601String(),
+            ];
+        }
+
+        return [
+            'company_id' => $company->id,
+            'items' => $items,
+            'meta' => [
+                'emitted_at' => $emittedAt->format(DATE_ATOM),
+                'trace_id' => $traceId,
+                'last_update_at' => $company->last_gold_prices_at?->toIso8601String() ?? $goldPrice->valid_from->toIso8601String(),
+            ],
+        ];
+    }
+
+    /**
      * Get prices for all active companies
      *
      * @return array

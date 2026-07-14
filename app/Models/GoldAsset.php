@@ -12,10 +12,12 @@ class GoldAsset extends Model
         'name',
         'unit',
         'is_active',
+        'last_price_at',
     ];
 
     protected $casts = [
         'is_active' => 'boolean',
+        'last_price_at' => 'datetime',
     ];
 
     public function rawPrices(): HasMany
