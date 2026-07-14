@@ -5,6 +5,7 @@ use App\Http\Controllers\Admin\GoldSettingController;
 use App\Http\Controllers\Admin\MultiplierPageController;
 use App\Http\Controllers\Admin\StoreController;
 use App\Http\Controllers\Auth\AuthenticatedSessionController;
+use App\Http\Controllers\BillingController;
 use App\Http\Controllers\DashboardController;
 use Illuminate\Support\Facades\Route;
 
@@ -17,6 +18,13 @@ Route::middleware('auth')->group(function () {
     Route::get('/dashboard/data', [DashboardController::class, 'data'])->name('dashboard.data');
     Route::post('/dashboard/fetch-now', [DashboardController::class, 'fetchNow'])->middleware('can:admin')->name('dashboard.fetchNow');
     Route::get('/pano/{store:slug}', [DashboardController::class, 'board'])->name('board');
+
+    // SaaS abonelik / faturalandırma
+    Route::get('/billing', [BillingController::class, 'pricing'])->name('billing.pricing');
+    Route::get('/billing/status', [BillingController::class, 'status'])->name('billing.status');
+    Route::post('/billing/subscribe/{plan}', [BillingController::class, 'subscribe'])->name('billing.subscribe');
+    Route::match(['get', 'post'], '/billing/callback/{plan}', [BillingController::class, 'callback'])->name('billing.callback');
+    Route::post('/billing/cancel', [BillingController::class, 'cancel'])->name('billing.cancel');
 });
 
 Route::get('/login', [AuthenticatedSessionController::class, 'create'])->name('login');

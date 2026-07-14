@@ -20,6 +20,14 @@
 
         <div class="flex items-center gap-4">
             @auth
+                @php $planCode = auth()->user()->planCode(); @endphp
+                <a href="{{ route('billing.status') }}"
+                   class="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold {{ $planCode === 'pro' ? 'text-white' : 'bg-slate-100 text-ink-600' }}"
+                   style="{{ $planCode === 'pro' ? 'background: var(--brand)' : '' }}"
+                   title="Aboneliğim">
+                    {{ $planCode === 'pro' ? 'Pro' : 'Ücretsiz' }}
+                    @if($planCode !== 'pro')<span class="text-ink-400">· Yükselt</span>@endif
+                </a>
                 <span class="hidden sm:inline text-sm text-ink-500">{{ auth()->user()->email }}</span>
                 <form method="POST" action="{{ route('logout') }}">
                     @csrf

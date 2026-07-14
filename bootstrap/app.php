@@ -15,9 +15,13 @@ return Application::configure(basePath: dirname(__DIR__))
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->alias([
             'portal.basic' => \App\Http\Middleware\PortalBasicAuth::class,
+            'plan' => \App\Http\Middleware\EnsurePlanFeature::class,
         ]);
 
         $middleware->appendToGroup('api', \Laravel\Sanctum\Http\Middleware\EnsureFrontendRequestsAreStateful::class);
+
+        // iyzico callback dış servisten POST edilir; CSRF muaf.
+        $middleware->validateCsrfTokens(except: ['billing/callback/*']);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         //

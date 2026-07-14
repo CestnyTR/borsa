@@ -4,6 +4,7 @@ namespace App\Models;
 
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Laravel\Sanctum\HasApiTokens;
@@ -76,5 +77,52 @@ class User extends Authenticatable
     public function canAccessCompany(int $companyId): bool
     {
         return $this->isAdmin() || ((int) $this->company_id === $companyId);
+    }
+
+    /**
+     * @return HasOne<Subscription, $this>
+     */
+    public function subscription(): HasOne
+    {
+        return $this->hasOne(Subscription::class)->latestOfMany();
+    }
+
+    /**
+     * Kullanıcının yürürlükteki plan kodu (aktif abonelik yoksa 'free').
+     */
+    public function planCode(): string
+    {
+        $sub = $this->subscription;
+        if ($sub && $sub->isActive()) {
+            return $sub->plan_code;
+        }
+
+        return (string) config('plans.default', 'free');
+    }
+
+    /**
+     * Yürürlükteki planın config tanımı.
+     *
+     * @return array<string, mixed>
+     */
+    public function plan(): array
+    {
+        $plans = (array) config('plans.plans', []);
+        $code = $this->planCode();
+
+        return $plans[$code] ?? $plans[config('plans.default', 'free')] ?? [];
+    }
+
+    /**
+     * Plan özelliği/limiti (örn. 'max_stores', 'live_prices').
+     */
+    public function planFeature(string $key, mixed $default = null): mixed
+    {
+        return $this->plan()['features'][$key] ?? $default;
+    }
+
+    public function onPro(): bool
+    {
+        return $this->planCode() === 'pro';
     }
 }

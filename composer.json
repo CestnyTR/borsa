@@ -8,6 +8,7 @@
     "require": {
         "php": "^8.2",
         "chrome-php/chrome": "^1.14",
+        "iyzico/iyzipay-php": "^2.0",
         "laravel/framework": "^12.0",
         "laravel/reverb": "^1.10",
         "laravel/sanctum": "^4.2",
