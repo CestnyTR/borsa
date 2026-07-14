@@ -59,6 +59,16 @@ class User extends Authenticatable
         return $this->belongsTo(Store::class);
     }
 
+    /**
+     * Kullanıcının sahip olduğu mağazalar (SaaS hesap → mağazalar).
+     *
+     * @return \Illuminate\Database\Eloquent\Relations\HasMany<Store, $this>
+     */
+    public function ownedStores()
+    {
+        return $this->hasMany(Store::class, 'owner_id');
+    }
+
     public function company()
     {
         return $this->belongsTo(Company::class);

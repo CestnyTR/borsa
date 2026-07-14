@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Models\AuditLog;
 use App\Models\Product;
 use App\Models\Source;
 use App\Models\Store;
@@ -118,6 +119,8 @@ class MultiplierPageController extends Controller
                 }
             }
         }
+
+        AuditLog::record('multipliers.updated', $store, ['cells' => $upserted]);
 
         return redirect()
             ->route('admin.stores.multipliers.edit', $store)

@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Str;
 
@@ -15,6 +16,7 @@ class Store extends Model
     public const DEFAULT_BRAND_COLOR = '#C9A227';
 
     protected $fillable = [
+        'owner_id',
         'name',
         'slug',
         'brand_color',
@@ -49,6 +51,14 @@ class Store extends Model
     public function brandColor(): string
     {
         return $this->brand_color ?: self::DEFAULT_BRAND_COLOR;
+    }
+
+    /**
+     * @return BelongsTo<User, $this>
+     */
+    public function owner(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'owner_id');
     }
 
     /**

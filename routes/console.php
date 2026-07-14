@@ -14,3 +14,6 @@ Schedule::command('gold:fetch')->everyFifteenMinutes();
 
 // Market quotes + store price calculation (throttled ~30s)
 Schedule::command('market:update')->everyMinute();
+
+// Sistem sağlığı kontrolü + uyarı (canlı akış / veri tazeliği)
+Schedule::command('monitor:health')->everyFiveMinutes();

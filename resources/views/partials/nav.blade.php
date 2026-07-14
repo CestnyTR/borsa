@@ -13,6 +13,7 @@
                         <a href="{{ route('dashboard') }}" class="text-ink-700 hover:text-ink-900 font-medium">Panel</a>
                         <a href="{{ route('admin.stores.index') }}" class="text-ink-500 hover:text-ink-900">Mağazalar</a>
                         <a href="{{ route('admin.companies.index') }}" class="text-ink-500 hover:text-ink-900">Şirketler</a>
+                        <a href="{{ route('admin.audit.index') }}" class="text-ink-500 hover:text-ink-900">Denetim</a>
                     </div>
                 @endcan
             @endauth

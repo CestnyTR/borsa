@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Admin\AuditLogController;
 use App\Http\Controllers\Admin\CompanyController;
 use App\Http\Controllers\Admin\GoldSettingController;
 use App\Http\Controllers\Admin\MultiplierPageController;
@@ -27,6 +28,9 @@ Route::middleware('auth')->group(function () {
     Route::post('/billing/cancel', [BillingController::class, 'cancel'])->name('billing.cancel');
 });
 
+// iyzico webhook (dış servis, auth yok; imza ile doğrulanır)
+Route::post('/billing/iyzico/webhook', [BillingController::class, 'webhook'])->name('billing.webhook');
+
 Route::get('/login', [AuthenticatedSessionController::class, 'create'])->name('login');
 Route::post('/login', [AuthenticatedSessionController::class, 'store'])->name('login.store');
 Route::post('/logout', [AuthenticatedSessionController::class, 'destroy'])->name('logout');
@@ -42,4 +46,6 @@ Route::prefix('admin')->name('admin.')->middleware(['auth', 'can:admin'])->group
     Route::resource('stores', StoreController::class)->only(['index', 'create', 'store', 'edit', 'update']);
     Route::get('stores/{store}/multipliers', [MultiplierPageController::class, 'edit'])->name('stores.multipliers.edit');
     Route::post('stores/{store}/multipliers', [MultiplierPageController::class, 'update'])->name('stores.multipliers.update');
+
+    Route::get('audit', [AuditLogController::class, 'index'])->name('audit.index');
 });

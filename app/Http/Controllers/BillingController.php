@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\AuditLog;
 use App\Models\Subscription;
 use App\Services\IyzicoService;
 use Carbon\CarbonImmutable;
@@ -97,6 +98,7 @@ class BillingController extends Controller
             iyzicoRef: $result['subscription_ref'],
             endsAt: CarbonImmutable::now()->addMonth(),
         );
+        AuditLog::record('subscription.activated', null, ['plan' => $plan]);
 
         return redirect()->route('billing.status')->with('success', 'Pro plan aktif! Teşekkürler.');
     }
@@ -112,9 +114,58 @@ class BillingController extends Controller
                 'status' => 'canceled',
                 'canceled_at' => now(),
             ]);
+            AuditLog::record('subscription.canceled', null, ['plan' => $sub->plan_code]);
         }
 
         return redirect()->route('billing.status')->with('success', 'Abonelik iptal edildi.');
+    }
+
+    /**
+     * iyzico webhook: abonelik yenileme/iptal/ödeme bildirimlerini işler.
+     * İmza doğrulanır; ilgili aboneliğin durumu güncellenir.
+     */
+    public function webhook(Request $request)
+    {
+        $raw = $request->getContent();
+        $signature = $request->header('X-IYZ-SIGNATURE-V3') ?? $request->header('X-IYZ-SIGNATURE');
+
+        if (!$this->iyzico->verifyWebhookSignature($raw, $signature)) {
+            Log::warning('iyzico webhook: imza doğrulanamadı', ['ip' => $request->ip()]);
+            abort(403);
+        }
+
+        $payload = (array) $request->json()->all();
+        $ref = $payload['subscriptionReferenceCode'] ?? $payload['referenceCode'] ?? null;
+        $event = strtolower((string) ($payload['iyziEventType'] ?? $payload['subscriptionStatus'] ?? $payload['status'] ?? ''));
+
+        if ($ref) {
+            $sub = Subscription::query()->where('iyzico_ref', $ref)->first();
+            if ($sub) {
+                $this->applyWebhookEvent($sub, $event);
+            }
+        }
+
+        return response()->json(['ok' => true]);
+    }
+
+    private function applyWebhookEvent(Subscription $sub, string $event): void
+    {
+        if (str_contains($event, 'cancel') || str_contains($event, 'expire') || str_contains($event, 'terminate') || str_contains($event, 'unsubscribe')) {
+            $sub->update(['status' => 'canceled', 'canceled_at' => now()]);
+            return;
+        }
+
+        if (str_contains($event, 'fail') || str_contains($event, 'unpaid') || str_contains($event, 'past')) {
+            $sub->update(['status' => 'past_due']);
+            return;
+        }
+
+        // active / renewed / success → yenile ve dönemi uzat.
+        $sub->update([
+            'status' => 'active',
+            'canceled_at' => null,
+            'current_period_ends_at' => CarbonImmutable::now()->addMonth(),
+        ]);
     }
 
     private function activate(int $userId, string $planCode, ?string $iyzicoRef, ?CarbonImmutable $endsAt): void

@@ -20,8 +20,8 @@ return Application::configure(basePath: dirname(__DIR__))
 
         $middleware->appendToGroup('api', \Laravel\Sanctum\Http\Middleware\EnsureFrontendRequestsAreStateful::class);
 
-        // iyzico callback dış servisten POST edilir; CSRF muaf.
-        $middleware->validateCsrfTokens(except: ['billing/callback/*']);
+        // iyzico callback/webhook dış servisten POST edilir; CSRF muaf.
+        $middleware->validateCsrfTokens(except: ['billing/callback/*', 'billing/iyzico/webhook']);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         //

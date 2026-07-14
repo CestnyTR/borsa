@@ -99,6 +99,23 @@ class IyzicoService
         ];
     }
 
+    /**
+     * Webhook imzasını doğrular (HMAC-SHA256, secret key ile).
+     * iyzico ham gövdeyi imzalar; base64 imzayı sabit-zamanlı karşılaştırırız.
+     */
+    public function verifyWebhookSignature(string $rawBody, ?string $signature): bool
+    {
+        if (!$this->isConfigured() || blank($signature)) {
+            return false;
+        }
+
+        $expected = base64_encode(
+            hash_hmac('sha256', $rawBody, (string) config('services.iyzico.secret_key'), true)
+        );
+
+        return hash_equals($expected, (string) $signature);
+    }
+
     private function options(): Options
     {
         $options = new Options();
