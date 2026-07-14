@@ -45,6 +45,8 @@ class HaremListenCommand extends Command
         $maxBackoff = 10;
 
         $this->info('[harem:listen] starting');
+        // Cron'a "HAREM'i ben besliyorum" sinyali.
+        MarketQuoteService::touchStreamHeartbeat(self::SOURCE_CODE);
 
         while (!$this->stopping) {
             $this->tickSucceeded = false;
@@ -60,7 +62,8 @@ class HaremListenCommand extends Command
                         return $this->stopping;
                     },
                     onIdle: function () use ($marketQuoteService, $storePricingService, $debounceMs): void {
-                        // Flush a trailing tick once the stream goes quiet.
+                        // Bağlantı ayakta — heartbeat'i taze tut ve varsa bekleyen tick'i boşalt.
+                        MarketQuoteService::touchStreamHeartbeat(self::SOURCE_CODE);
                         $this->maybeFlush($marketQuoteService, $storePricingService, $debounceMs);
                     },
                 );
@@ -99,6 +102,7 @@ class HaremListenCommand extends Command
         $data = $this->pending;
         $this->pending = null;
         $this->lastFlushAt = microtime(true);
+        MarketQuoteService::touchStreamHeartbeat(self::SOURCE_CODE);
 
         try {
             $quotes = $this->buildQuotes($data);

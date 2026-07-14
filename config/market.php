@@ -31,4 +31,18 @@ return [
 
     'stream_debounce_ms' => (int) env('MARKET_STREAM_DEBOUNCE_MS', 1000),
 
+    /*
+    |--------------------------------------------------------------------------
+    | Stream heartbeat TTL (seconds)
+    |--------------------------------------------------------------------------
+    |
+    | The live daemon refreshes a heartbeat cache key while running. The
+    | scheduled poller skips a streamed source only while its heartbeat is
+    | fresh; if the daemon dies, the poller resumes one-shot fetching so data
+    | keeps flowing (just not tick-by-tick).
+    |
+    */
+
+    'stream_heartbeat_ttl' => (int) env('MARKET_STREAM_HEARTBEAT_TTL', 30),
+
 ];

@@ -66,25 +66,29 @@ REVERB_PORT=8080
 REVERB_SCHEME=http        # prod: https
 ```
 
-## Çalıştırma (VDS)
+## Çalıştırma — PM2 (tek komut)
 
-Üç kalıcı süreç + cron gerekir. Supervisor örneği:
-[deploy/supervisor/borsa.conf](deploy/supervisor/borsa.conf).
+Tüm arka plan süreçleri (reverb, queue, cron/scheduler, harem) **tek komutla**
+PM2 ile çalışır. Config: [ecosystem.config.cjs](ecosystem.config.cjs).
 
-| Süreç | Komut | Görev |
-|---|---|---|
-| WebSocket santralı | `php artisan reverb:start` | Event'leri tarayıcılara dağıtır |
-| HAREM dinleyici | `php artisan harem:listen` | HAREM'den canlı tick çeker |
-| Queue worker | `php artisan queue:work` | Broadcast job'larını işler |
-
-Cron (dakikalık scheduler):
-
-```cron
-* * * * * cd /var/www/borsa && php artisan schedule:run >> /dev/null 2>&1
+```bash
+npm install -g pm2                    # bir kez
+pm2 start ecosystem.config.cjs        # hepsini başlat
+pm2 status                            # durum
+pm2 logs                              # loglar (tek süreç: pm2 logs harem)
+pm2 startup && pm2 save               # sunucu açılışında otomatik başlat
 ```
 
-`schedule:run` şunları tetikler: `market:update` (dakikalık, HAREM hariç
-kaynaklar) ve `gold:fetch` (15 dakikada bir şirket gram fiyatları).
+| Süreç (PM2 adı) | Komut | Görev |
+|---|---|---|
+| `reverb` | `reverb:start` | Event'leri tarayıcılara dağıtan websocket santralı |
+| `queue` | `queue:work` | Broadcast job'larını işler |
+| `cron` | `schedule:work` | `market:update` (dakikalık) + `gold:fetch` (15 dk) — ayrı crontab gerekmez |
+| `harem` | `harem:listen` | HAREM'den canlı tick çeker |
+
+- **Sunucuda web'i nginx + php-fpm sunar** (varsayılan; PM2 web'i çalıştırmaz).
+- **Yerelde** dahili web sunucusunu da istersen: `APP_SERVE=1 pm2 start ecosystem.config.cjs`.
+- Alternatif: Supervisor örneği [deploy/supervisor/borsa.conf](deploy/supervisor/borsa.conf).
 
 **Prod notu:** Tarayıcı `localhost:8080`'e erişemez. `REVERB_HOST`'u genel alan
 adına, `REVERB_SCHEME`'i `https`'e ayarla ve nginx ile `wss://alanadi → localhost:8080`

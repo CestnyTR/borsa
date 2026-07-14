@@ -11,7 +11,7 @@ class StoreSeeder extends Seeder
     {
         Store::query()->updateOrCreate(
             ['name' => 'Demo Mağaza'],
-            ['is_active' => true]
+            ['is_active' => true, 'slug' => 'demo-magaza']
         );
     }
 }

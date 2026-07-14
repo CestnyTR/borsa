@@ -36,6 +36,26 @@ class DashboardController extends Controller
             'selectedStore' => $selectedStore,
             'initial' => $payload,
             'isAdmin' => $isAdmin,
+            'brandColor' => $selectedStore?->brandColor() ?? Store::DEFAULT_BRAND_COLOR,
+        ]);
+    }
+
+    /**
+     * Müşteriye dönük tam ekran fiyat panosu (canlı, read-only).
+     */
+    public function board(Request $request, Store $store)
+    {
+        $user = $request->user();
+        $isAdmin = $user?->can('admin') ?? false;
+
+        if (!$isAdmin && !($user && $user->store_id === $store->id)) {
+            abort(403);
+        }
+
+        return view('board', [
+            'store' => $store,
+            'initial' => $this->buildPayload($store),
+            'brandColor' => $store->brandColor(),
         ]);
     }
 

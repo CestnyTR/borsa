@@ -16,6 +16,7 @@ Route::middleware('auth')->group(function () {
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
     Route::get('/dashboard/data', [DashboardController::class, 'data'])->name('dashboard.data');
     Route::post('/dashboard/fetch-now', [DashboardController::class, 'fetchNow'])->middleware('can:admin')->name('dashboard.fetchNow');
+    Route::get('/pano/{store:slug}', [DashboardController::class, 'board'])->name('board');
 });
 
 Route::get('/login', [AuthenticatedSessionController::class, 'create'])->name('login');

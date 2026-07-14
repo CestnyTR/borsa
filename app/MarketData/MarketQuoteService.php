@@ -29,9 +29,11 @@ class MarketQuoteService
 
         foreach ($sources as $source) {
             // Sources owned by a live daemon (e.g. HAREM) are pushed in real
-            // time; skip them here so we don't open a second upstream
-            // connection and trip its rate limit.
-            if (in_array(strtoupper((string) $source->code), $streamed, true)) {
+            // time; skip them here ONLY while the daemon's heartbeat is fresh,
+            // so we don't open a second upstream connection and trip its rate
+            // limit. If the daemon is down, fall back to one-shot polling.
+            if (in_array(strtoupper((string) $source->code), $streamed, true)
+                && Cache::has(self::streamHeartbeatKey($source->code))) {
                 continue;
             }
 
@@ -146,6 +148,26 @@ class MarketQuoteService
     public function cacheKeyLatest(string $sourceCode, string $instrument): string
     {
         return "market:latest:{$sourceCode}:{$instrument}";
+    }
+
+    /**
+     * Cache key a live daemon refreshes to signal it owns this source.
+     */
+    public static function streamHeartbeatKey(string $sourceCode): string
+    {
+        return 'market:stream:heartbeat:' . strtoupper($sourceCode);
+    }
+
+    /**
+     * Called by the live daemon to keep its ownership heartbeat fresh.
+     */
+    public static function touchStreamHeartbeat(string $sourceCode): void
+    {
+        Cache::put(
+            self::streamHeartbeatKey($sourceCode),
+            true,
+            (int) config('market.stream_heartbeat_ttl', 30)
+        );
     }
 
     /**
