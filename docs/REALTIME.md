@@ -2,13 +2,15 @@
 
 ## Kapsam
 - Data producer ayni: cron + job pipeline DB'ye yazmaya devam eder.
-- Delivery layer ek: Laravel Broadcasting + pusher-uyumlu servis.
+- HAREM ek olarak `harem:listen` daemon'i ile Socket.IO'dan canli beslenir.
+- Delivery layer: Laravel Broadcasting + self-hosted Reverb (Pusher-uyumlu).
 - REST endpoint'ler fallback ve admin CRUD icin korunur.
 
 ## Broadcasting Setup
-- Driver: `pusher`
-- Config: `config/broadcasting.php`
-- Env: `BROADCAST_DRIVER`, `PUSHER_APP_ID`, `PUSHER_APP_KEY`, `PUSHER_APP_SECRET`, `PUSHER_APP_CLUSTER`
+- Driver: `reverb` (self-hosted, VDS'te `php artisan reverb:start`)
+- Config: `config/broadcasting.php`, `config/reverb.php`
+- Env: `BROADCAST_CONNECTION=reverb`, `REVERB_APP_ID`, `REVERB_APP_KEY`, `REVERB_APP_SECRET`, `REVERB_HOST`, `REVERB_PORT`, `REVERB_SCHEME`
+- `ShouldBroadcast` event'leri queue uzerinden gider -> queue worker sart.
 - Auth endpoint: `POST /broadcasting/auth` (Sanctum korumali)
 
 ## Sanctum Auth Setup
@@ -46,7 +48,7 @@
 ## Frontend Subscription (Ozet)
 1. Kullanici girisi (session veya token):
    - Token: `POST /api/auth/token`
-2. Pusher baglantisi:
+2. Reverb baglantisi (pusher-js, kendi Reverb host'una yonlendirilir):
    - `private-store.{storeId}`
    - `private-company.{companyId}`
    - `private-admin.dashboard` (admin)

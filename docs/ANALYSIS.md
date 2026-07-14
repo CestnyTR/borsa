@@ -8,12 +8,12 @@ Proje iki paralel fiyat hattina sahip: (1) `gold_*` tablolarina dayali “sirket
 - Is Mantigi/Servis: fiyat hesaplama, market quote, scraping, health scoring. `app/Services/*`, `app/MarketData/*`, `app/Pricing/*`  
 - Arkaplan Isleri: cron + queue jobs. `routes/console.php`, `app/Jobs/*`, `app/Console/Commands/*`  
 - Veri: Eloquent modeller + DB. `app/Models/*`, `database/migrations/*`  
-- Broadcasting: Pusher uyumlu servis, private channels. `config/broadcasting.php`, `routes/channels.php`, `app/Events/*`
+- Broadcasting: Reverb (self-hosted, Pusher-uyumlu), private channels. `config/broadcasting.php`, `config/reverb.php`, `routes/channels.php`, `app/Events/*`
 
 **Veri Akis Diyagrami (Metin)**  
 ```
 [External Sources]
-  Ahlatci (HTML) / Nadir (API) / Harem (API)
+  Ahlatci (HTML) / Nadir (API) / Harem (Socket.IO, canli)
         |
         |  Market quotes (HAS/ONS)
         v
@@ -29,7 +29,7 @@ Fallback REST: /api/v1/stores/{store}/prices/latest
 ```
 ```
 [External Sources]
-  Nadir (API) / Ahlatci (HTML) / Harem (API)
+  Nadir (API) / Ahlatci (HTML) / Harem (Socket.IO)
         |
         v
 GoldPriceAggregator -> gold_raw_prices (DB)
@@ -105,7 +105,7 @@ Fallback REST: /api/companies/* ve /api/gold/*
 
 **Uyarilar**  
 - Store pricing sadece `HAS` enstrumanini isliyor, `ONS` quote’larina cache/DB yazilmiyor. `app/Pricing/StorePricingService.php`  
-- Broadcasting icin managed provider gerekli; shared hosting kisiti nedeniyle self-hosted WS uygun degil. `config/broadcasting.php`
+- Broadcasting VDS'te self-hosted Reverb ile calisir (kalici surec: `reverb:start`); `ShouldBroadcast` event'leri queue worker uzerinden gider. HAREM canli akisi `harem:listen` daemon'i ile Socket.IO'dan beslenir. `config/broadcasting.php`, `config/reverb.php`, `app/Console/Commands/HaremListenCommand.php`, `docs/REALTIME.md`
 
 **Eksik veya Belirsiz Kisimlar (Sadece Liste)**  
 - Token tabanli auth devrede; prod ortamda token lifecycle/policy net degil. `config/sanctum.php`  
