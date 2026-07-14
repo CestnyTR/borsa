@@ -76,25 +76,39 @@ class StorePricingService
                 $instrument = (string) $quote->instrument;
 
                 foreach ($multipliers[$sourceId][$instrument] ?? [] as $productId => $sides) {
-                    $bidMultiplier = $sides['BID'] ?? null;
-                    $askMultiplier = $sides['ASK'] ?? null;
+                    $bidMargin = $sides['BID'] ?? null;
+                    $askMargin = $sides['ASK'] ?? null;
 
-                    $bid = $this->calculator->compute($quote->bid !== null ? (float) $quote->bid : null, $bidMultiplier);
-                    $ask = $this->calculator->compute($quote->ask !== null ? (float) $quote->ask : null, $askMultiplier);
+                    // Gram-içeriği ürün sabiti (sunucu); marj mağazadan gelir.
+                    $hasFactor = isset($products[$productId]) ? (float) $products[$productId]->has_factor : null;
+
+                    $bid = $this->calculator->compute(
+                        $quote->bid !== null ? (float) $quote->bid : null,
+                        $hasFactor,
+                        $bidMargin['percent'] ?? 0.0,
+                        $bidMargin['amount'] ?? 0.0
+                    );
+                    $ask = $this->calculator->compute(
+                        $quote->ask !== null ? (float) $quote->ask : null,
+                        $hasFactor,
+                        $askMargin['percent'] ?? 0.0,
+                        $askMargin['amount'] ?? 0.0
+                    );
 
                     $basis = [
                         'market_quote_id' => $quote->id,
                         'source_id' => $sourceId,
                         'instrument' => $instrument,
+                        'has_factor' => $hasFactor,
                         'raw' => [
                             'bid' => $quote->bid !== null ? (float) $quote->bid : null,
                             'ask' => $quote->ask !== null ? (float) $quote->ask : null,
                             'currency' => (string) $quote->currency,
                             'fetched_at' => $quote->fetched_at?->toIso8601String(),
                         ],
-                        'multipliers' => [
-                            'BID' => $bidMultiplier,
-                            'ASK' => $askMultiplier,
+                        'margins' => [
+                            'BID' => $bidMargin,
+                            'ASK' => $askMargin,
                         ],
                     ];
 
@@ -223,7 +237,10 @@ class StorePricingService
             $grouped[$sourceId] ??= [];
             $grouped[$sourceId][$instrument] ??= [];
             $grouped[$sourceId][$instrument][$productId] ??= [];
-            $grouped[$sourceId][$instrument][$productId][$side] = (float) $row->multiplier;
+            $grouped[$sourceId][$instrument][$productId][$side] = [
+                'percent' => (float) $row->margin_percent,
+                'amount' => (float) $row->margin_amount,
+            ];
         }
 
         return $grouped;

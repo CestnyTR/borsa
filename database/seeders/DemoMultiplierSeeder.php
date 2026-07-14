@@ -40,7 +40,9 @@ class DemoMultiplierSeeder extends Seeder
                             'side' => $side,
                         ],
                         [
-                            'multiplier' => 1.0,
+                            // Varsayılan marj yok; mağaza kendi farkını sonra girer.
+                            'margin_percent' => 0,
+                            'margin_amount' => 0,
                             'is_active' => true,
                         ]
                     );

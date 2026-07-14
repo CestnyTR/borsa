@@ -21,7 +21,8 @@ class MultiplierController extends Controller
             'multipliers.*.instrument' => ['required', Rule::in(['HAS', 'ONS'])],
             'multipliers.*.product' => ['required', 'string', Rule::exists('products', 'code')],
             'multipliers.*.side' => ['required', Rule::in(['BID', 'ASK'])],
-            'multipliers.*.multiplier' => ['required', 'numeric', 'min:0.000001', 'max:9999'],
+            'multipliers.*.margin_percent' => ['sometimes', 'numeric', 'min:-100', 'max:1000'],
+            'multipliers.*.margin_amount' => ['sometimes', 'numeric'],
             'multipliers.*.is_active' => ['sometimes', 'boolean'],
         ]);
 
@@ -40,7 +41,8 @@ class MultiplierController extends Controller
                     'side' => $item['side'],
                 ],
                 [
-                    'multiplier' => $item['multiplier'],
+                    'margin_percent' => $item['margin_percent'] ?? 0,
+                    'margin_amount' => $item['margin_amount'] ?? 0,
                     'is_active' => $item['is_active'] ?? true,
                 ]
             );

@@ -93,15 +93,21 @@ class MarketQuoteService
     public function storeSourceQuotes(Source $source, array $quotes, int $cacheTtlSeconds = 90): void
     {
         foreach ($quotes as $quote) {
-            $model = MarketQuote::query()->create([
-                'source_id' => $source->id,
-                'instrument' => $quote->instrument,
-                'bid' => $quote->bid,
-                'ask' => $quote->ask,
-                'currency' => $quote->currency,
-                'fetched_at' => $quote->fetchedAt,
-                'raw_payload' => $quote->rawPayload,
-            ]);
+            // Append-log yerine kaynak+enstrüman başına tek satırı güncelle
+            // (tablo sınırlı kalır; canlı daemon saniyede yazsa da şişmez).
+            $model = MarketQuote::query()->updateOrCreate(
+                [
+                    'source_id' => $source->id,
+                    'instrument' => $quote->instrument,
+                ],
+                [
+                    'bid' => $quote->bid,
+                    'ask' => $quote->ask,
+                    'currency' => $quote->currency,
+                    'fetched_at' => $quote->fetchedAt,
+                    'raw_payload' => $quote->rawPayload,
+                ]
+            );
 
             Cache::put(
                 $this->cacheKeyLatest($source->code, $quote->instrument),

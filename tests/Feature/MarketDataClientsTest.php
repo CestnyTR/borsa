@@ -2,8 +2,9 @@
 
 namespace Tests\Feature;
 
-use App\MarketData\Clients\HaremClient;
 use App\MarketData\Clients\NadirClient;
+use App\MarketData\Support\HaremSocketReader;
+use App\MarketData\Support\NumberParser;
 use Illuminate\Support\Facades\Http;
 use Tests\TestCase;
 
@@ -31,24 +32,26 @@ class MarketDataClientsTest extends TestCase
         $this->assertSame(2051.75, $quotes[1]->ask);
     }
 
-    public function test_harem_client_returns_has_and_ons_quotes(): void
+    public function test_harem_socket_reader_extracts_gram_and_ons_rows(): void
     {
-        Http::fake([
-            'https://canlipiyasalar.haremaltin.com/tmp/altin.json*' => Http::response([
-                'data' => [
-                    'HASALTIN' => ['alis' => '3.000,50', 'satis' => '3.010,75'],
-                    'ONS' => ['alis' => '2.050,25', 'satis' => '2.051,75'],
-                ],
-            ], 200),
-        ]);
+        // HAREM artık Socket.IO ile yayınlıyor; price_changed payload'ında
+        // gram altın ALTIN key'inde, ons ONS key'inde gelir. Parsing testi:
+        $data = [
+            'USDTRY' => ['code' => 'USDTRY', 'alis' => '40.00', 'satis' => '40.10'],
+            'ALTIN' => ['code' => 'ALTIN', 'alis' => '6077.800', 'satis' => '6105.670'],
+            'ONS' => ['code' => 'ONS', 'alis' => '4024.40', 'satis' => '4024.90'],
+        ];
 
-        $quotes = (new HaremClient())->fetchQuotes();
+        $has = HaremSocketReader::extractRow($data, ['ALTIN', 'HASALTIN', 'HAS'], ['ALTIN', 'HAS']);
+        $ons = HaremSocketReader::extractRow($data, ['ONS', 'XAUUSD'], ['ONS', 'XAUUSD']);
 
-        $this->assertCount(2, $quotes);
-        $this->assertSame('HAS', $quotes[0]->instrument);
-        $this->assertSame(3000.5, $quotes[0]->bid);
-        $this->assertSame('ONS', $quotes[1]->instrument);
-        $this->assertSame(2051.75, $quotes[1]->ask);
+        $this->assertNotNull($has);
+        $this->assertSame(6077.8, NumberParser::parseLocaleNumber($has['alis']));
+        $this->assertSame(6105.67, NumberParser::parseLocaleNumber($has['satis']));
+
+        $this->assertNotNull($ons);
+        $this->assertSame(4024.4, NumberParser::parseLocaleNumber($ons['alis']));
+        $this->assertSame(4024.9, NumberParser::parseLocaleNumber($ons['satis']));
     }
 }
 

@@ -24,7 +24,8 @@ class MultiplierPageController extends Controller
         $values = [];
         foreach ($rows as $row) {
             $values[$row->source->code][(string) $row->instrument][$row->product->code][(string) $row->side] = [
-                'multiplier' => $row->multiplier !== null ? (float) $row->multiplier : null,
+                'margin_percent' => (float) $row->margin_percent,
+                'margin_amount' => (float) $row->margin_amount,
                 'is_active' => (bool) $row->is_active,
             ];
         }
@@ -71,21 +72,27 @@ class MultiplierPageController extends Controller
                             continue;
                         }
 
-                        $multiplierRaw = $cell['multiplier'] ?? null;
-                        if ($multiplierRaw === '' || $multiplierRaw === null) {
+                        $percentRaw = $cell['margin_percent'] ?? null;
+                        $amountRaw = $cell['margin_amount'] ?? null;
+
+                        // İkisi de boşsa bu hücre atlanır.
+                        if (($percentRaw === '' || $percentRaw === null) && ($amountRaw === '' || $amountRaw === null)) {
                             continue;
                         }
 
-                        if (!is_numeric($multiplierRaw)) {
+                        if (($percentRaw !== '' && $percentRaw !== null && !is_numeric($percentRaw))
+                            || ($amountRaw !== '' && $amountRaw !== null && !is_numeric($amountRaw))) {
                             return back()
-                                ->withErrors(['multipliers' => "{$sourceCode}/{$instrument}/{$productCode}/{$side} için multiplier sayı olmalı."])
+                                ->withErrors(['multipliers' => "{$sourceCode}/{$instrument}/{$productCode}/{$side} için marj sayı olmalı."])
                                 ->withInput();
                         }
 
-                        $multiplier = (float) $multiplierRaw;
-                        if ($multiplier < 0.000001 || $multiplier > 9999) {
+                        $percent = ($percentRaw === '' || $percentRaw === null) ? 0.0 : (float) $percentRaw;
+                        $amount = ($amountRaw === '' || $amountRaw === null) ? 0.0 : (float) $amountRaw;
+
+                        if ($percent < -100 || $percent > 1000) {
                             return back()
-                                ->withErrors(['multipliers' => "{$sourceCode}/{$instrument}/{$productCode}/{$side} için multiplier aralık dışı."])
+                                ->withErrors(['multipliers' => "{$sourceCode}/{$instrument}/{$productCode}/{$side} için yüzde marj aralık dışı."])
                                 ->withInput();
                         }
 
@@ -100,7 +107,8 @@ class MultiplierPageController extends Controller
                                 'side' => $side,
                             ],
                             [
-                                'multiplier' => $multiplier,
+                                'margin_percent' => $percent,
+                                'margin_amount' => $amount,
                                 'is_active' => $isActive,
                             ]
                         );

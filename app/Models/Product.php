@@ -12,6 +12,14 @@ class Product extends Model
     protected $fillable = [
         'code',
         'name',
+        'has_factor',
     ];
+
+    protected function casts(): array
+    {
+        return [
+            'has_factor' => 'float',
+        ];
+    }
 }
 

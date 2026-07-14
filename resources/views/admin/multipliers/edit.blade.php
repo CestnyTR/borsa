@@ -1,6 +1,6 @@
 @extends('layouts.app')
 
-@section('title', 'Çarpanlar')
+@section('title', 'Fiyat Marjları')
 
 @php
     $instruments = ['HAS', 'ONS'];
@@ -10,9 +10,14 @@
 @section('content')
     <div class="flex items-center justify-between flex-wrap gap-3">
         <div>
-            <h1 class="text-2xl font-bold text-gray-800">Çarpanlar</h1>
+            <h1 class="text-2xl font-bold text-gray-800">Fiyat Marjları</h1>
             <p class="text-sm text-gray-600 mt-1">
                 Mağaza: <span class="font-semibold">{{ $store->name }}</span>
+            </p>
+            <p class="text-xs text-gray-500 mt-1 max-w-2xl">
+                Altın gram-içeriği sunucuda sabittir (çeyrek, yarım, tam…). Siz yalnızca
+                <span class="font-medium">kendi farkınızı</span> girin: yüzde (%) ve/veya sabit tutar (₺).
+                Fiyat = HAS × gram-sabiti × (1 + %marj) + tutar. Alış için eksi değer girebilirsiniz.
             </p>
         </div>
 
@@ -77,30 +82,28 @@
                                 @foreach($instruments as $instrument)
                                     @foreach($sides as $side => $sideLabel)
                                         @php
+                                            $base = "multipliers.{$source->code}.{$instrument}.{$product->code}.{$side}";
+                                            $name = "multipliers[{$source->code}][{$instrument}][{$product->code}][{$side}]";
                                             $cell = $values[$source->code][$instrument][$product->code][$side] ?? null;
-                                            $mult = old("multipliers.{$source->code}.{$instrument}.{$product->code}.{$side}.multiplier", $cell['multiplier'] ?? '');
-                                            $active = old("multipliers.{$source->code}.{$instrument}.{$product->code}.{$side}.is_active", $cell['is_active'] ?? true);
+                                            $pct = old("{$base}.margin_percent", $cell['margin_percent'] ?? '');
+                                            $amt = old("{$base}.margin_amount", $cell['margin_amount'] ?? '');
+                                            $active = old("{$base}.is_active", $cell['is_active'] ?? true);
                                         @endphp
                                         <td class="py-2 px-3 align-top">
-                                            <input
-                                                type="number"
-                                                inputmode="decimal"
-                                                step="0.000001"
-                                                min="0.000001"
-                                                max="9999"
-                                                name="multipliers[{{ $source->code }}][{{ $instrument }}][{{ $product->code }}][{{ $side }}][multiplier]"
-                                                value="{{ $mult }}"
-                                                class="w-28 border border-gray-300 rounded px-2 py-1 font-mono text-xs"
-                                                placeholder="örn: 0.911000"
-                                            />
+                                            <div class="flex items-center gap-1">
+                                                <input type="number" inputmode="decimal" step="0.01" min="-100" max="1000"
+                                                    name="{{ $name }}[margin_percent]" value="{{ $pct }}"
+                                                    class="w-16 border border-gray-300 rounded px-2 py-1 font-mono text-xs"
+                                                    placeholder="%" title="Yüzde marj" />
+                                                <span class="text-gray-400">%</span>
+                                                <input type="number" inputmode="decimal" step="0.01"
+                                                    name="{{ $name }}[margin_amount]" value="{{ $amt }}"
+                                                    class="w-20 border border-gray-300 rounded px-2 py-1 font-mono text-xs"
+                                                    placeholder="₺" title="Sabit tutar marj (₺)" />
+                                            </div>
                                             <label class="mt-1 flex items-center gap-1 text-[10px] text-gray-600">
-                                                <input
-                                                    type="checkbox"
-                                                    name="multipliers[{{ $source->code }}][{{ $instrument }}][{{ $product->code }}][{{ $side }}][is_active]"
-                                                    value="1"
-                                                    class="h-3 w-3"
-                                                    {{ $active ? 'checked' : '' }}
-                                                />
+                                                <input type="checkbox" name="{{ $name }}[is_active]" value="1"
+                                                    class="h-3 w-3" {{ $active ? 'checked' : '' }} />
                                                 aktif
                                             </label>
                                         </td>

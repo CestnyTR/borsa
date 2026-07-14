@@ -21,7 +21,8 @@ class StorePricingServiceTest extends TestCase
     {
         $store = Store::query()->create(['name' => 'S1', 'is_active' => true]);
         $source = Source::query()->create(['code' => 'HAREM', 'name' => 'Harem', 'is_active' => true]);
-        $product = Product::query()->create(['code' => 'GRAM_24', 'name' => 'Gram 24']);
+        // has_factor=2.0: fiyat = HAS × 2.0 × marj
+        $product = Product::query()->create(['code' => 'GRAM_24', 'name' => 'Gram 24', 'has_factor' => 2.0]);
 
         MarketQuote::query()->create([
             'source_id' => $source->id,
@@ -33,13 +34,15 @@ class StorePricingServiceTest extends TestCase
             'raw_payload' => ['x' => 1],
         ]);
 
+        // BID: %-1.5 marj, tutar yok.  ASK: %+2 marj + 50₺ tutar.
         StorePriceMultiplier::query()->create([
             'store_id' => $store->id,
             'source_id' => $source->id,
             'instrument' => 'HAS',
             'product_id' => $product->id,
             'side' => 'BID',
-            'multiplier' => 0.911,
+            'margin_percent' => -1.5,
+            'margin_amount' => 0,
             'is_active' => true,
         ]);
         StorePriceMultiplier::query()->create([
@@ -48,7 +51,8 @@ class StorePricingServiceTest extends TestCase
             'instrument' => 'HAS',
             'product_id' => $product->id,
             'side' => 'ASK',
-            'multiplier' => 0.918,
+            'margin_percent' => 2.0,
+            'margin_amount' => 50.0,
             'is_active' => true,
         ]);
 
@@ -61,8 +65,10 @@ class StorePricingServiceTest extends TestCase
             ->first();
 
         $this->assertNotNull($row);
-        $this->assertSame(2733.0, (float) $row->bid);
-        $this->assertSame(2763.18, round((float) $row->ask, 2));
+        // 3000 × 2.0 × (1 - 0.015) = 5910
+        $this->assertSame(5910.0, round((float) $row->bid, 2));
+        // 3010 × 2.0 × 1.02 + 50 = 6190.4
+        $this->assertSame(6190.4, round((float) $row->ask, 2));
 
         $cached = Cache::get("store:prices:latest:{$store->id}:HAREM:GRAM_24");
         $this->assertIsArray($cached);

@@ -16,14 +16,16 @@ class StorePriceMultiplier extends Model
         'instrument',
         'product_id',
         'side',
-        'multiplier',
+        'margin_percent',
+        'margin_amount',
         'is_active',
     ];
 
     protected function casts(): array
     {
         return [
-            'multiplier' => 'decimal:6',
+            'margin_percent' => 'float',
+            'margin_amount' => 'float',
             'is_active' => 'boolean',
         ];
     }
