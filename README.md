@@ -1,5 +1,7 @@
 # Fiyat Paneli
 
+> Real-time gold price & customer display SaaS for jewelers — multi-tenant, subscription billing, live prices over WebSocket.
+
 **Kuyumcular için canlı altın fiyatı & müşteri panosu SaaS'ı.**
 
 Fiyat Paneli; kuyumcuların ham piyasa verilerini (HAS/ONS) birden çok kaynaktan toplayıp kendi marjlarıyla ürün fiyatlarına dönüştürmesini, bu fiyatları **saniye saniye canlı** olarak hem kendi panellerinde hem de dükkandaki müşteri panosunda (TV/tablet) göstermesini sağlar. Çok kiracılı yapı, abonelik planları ve iyzico ödeme akışıyla uçtan uca bir SaaS örneğidir.
