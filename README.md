@@ -48,7 +48,7 @@ Fiyat Paneli; kuyumcuların ham piyasa verilerini (HAS/ONS) birden çok kaynakta
 ## Kurulum
 
 ```bash
-git clone <repo> && cd borsa
+git clone https://github.com/CestnyTR/borsa.git  && cd borsa
 composer install
 cp .env.example .env
 php artisan key:generate
